@@ -1,33 +1,145 @@
-# Setting up locally with docker(recommended)
-Please note that although docker is recommended, you can also set up the project without it.
-But using docker is recommended as it simplifies the setup process, and keeps the envirnment consistent without interfering with your local setup.
-Kindly go through the docker installation process for your OS first.
+# Setting Up YDO Locally
+
+Thank you for your interest in YDO and your willingness to contribute.
+
+This guide walks you through getting the project and development environment running on your machine. Read it fully before running any commands.
+
+- --
 
 ## Prerequisites
-- node.js/ nvm / volta (recommended)
-- Docker
+
+Make sure the following are installed before you begin:
+
+- Node.js via nvm or volta (recommended)
 - pnpm
+- Docker Desktop (required for local Supabase)
+
+> ****Docker**** is required because ****Supabase**** runs as a set of containers (database, auth, storage) on your machine. It keeps the database environment isolated and consistent. If ****Docker Desktop**** is not running, those containers can't start and `supabase start` will fail. Make sure Docker Desktop is open and running before any Supabase commands.
+
+- --
 
 ## Steps
 
-1. Clone the repository.
-2. Run `pnpm install` to install dependencies.
-3. Run `pnpm run dev` to start the development server.
+### 1. Fork and Clone
 
-### Local Supabase Setup:
-1. Run `pnpm dlx supabase init` to initialize a local Supabase project.
-2. Run `pnpm dlx supabase start` to start the local Supabase server.
-3. Run `pnpm dlx supabase stop` to stop the local Supabase server.
+Fork the repository on GitHub, then clone your fork:
 
-## Environment Variables
+```bash
 
-### .env.local (located in the root directory)
-Contains the environment variables for the supabase setup.
-- After running `pnpm dlx supabase start`, check your terminal for the Database URL and publishable Keys.
-- Paste the URL into the `NEXT_PUBLIC_SUPABASE_URL`, and the publishable key into the `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+git clone https://github.com/<your-username>/YDO_26.git
 
-### .env (in supabase folder)
-Contains the environment variables for google OAuth services.
-- Setup your own OAuth credentials at [Google Cloud Console](https://console.cloud.google.com/).
-- Note the secret key and client ID.
-- Paste the client ID into the `SUPABASE_AUTH_GOOGLE_CLIENT_ID` and the secret key into the `SUPABASE_AUTH_GOOGLE_SECRET`.
+cd YDO_26
+
+```
+
+Add the upstream remote so you can sync with the main repo later:
+
+```bash
+
+git remote add upstream https://github.com/bsoc-bitbyte/YDO_26.git
+
+```
+
+### 2. Install dependencies
+
+```bash
+
+pnpm install
+
+```
+
+### 3. Set Up Local Supabase
+
+With Docker Desktop running, initialize and start Supabase:
+
+```bash
+
+pnpm dlx supabase init      # run once to initialize the local project
+
+pnpm dlx supabase start     # starts the local Supabase instance
+
+```
+
+From the output, you will need two values for the next step:
+
+| Field | Where to find it in the output |
+
+|---|---|
+
+| NEXT_PUBLIC_SUPABASE_URL | Project URL under APIs |
+
+| NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY | Publishable under Authentication Keys |
+
+In case you want to revisit the same credentials, run
+
+```bash
+
+pnpm dlx supabase status
+
+```
+
+To stop Supabase when you are done:
+
+```bash
+
+pnpm dlx supabase stop
+
+```
+
+### 4. Configure Environment Variables
+
+The project requires two separate env files. Create both in the locations below.
+
+- ***`.env.local`**** (root directory): connects Next.js to your local Supabase instance:
+
+```env
+
+NEXT_PUBLIC_SUPABASE_URL=<API URL>
+
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<anon key>
+
+```
+
+- ***`supabase/.env`**** Google OAuth credentials for Supabase Auth:
+
+To get OAuth credentials: go to Google Cloud Console, navigate to APIs & Services > Credentials, and create an OAuth 2.0 Client ID. Copy the client ID and secret into the fields below.
+
+```env
+
+SUPABASE_AUTH_GOOGLE_CLIENT_ID=<your-client-id>
+
+SUPABASE_AUTH_GOOGLE_SECRET=<your-secret-key>
+
+```
+
+> Note: Auth is restricted to `@iiitdmj.ac.in` Google accounts in production. For local development, you can adjust this restriction in your local Supabase Auth settings.
+
+### 5. Start the Development Server
+
+```bash
+
+pnpm run dev
+
+```
+
+Open http://localhost:3000 in your browser.
+
+## Troubleshooting
+
+- `supabase start` ***fails immediately****:
+
+Docker Desktop is not running. Start it and try again.
+
+- ***Environment variable errors on startup****:
+
+Confirm `.env.local` exists in the root directory (not inside `app/`) and that both variables are filled in with values from the `supabase start` output.
+
+- ***Out of sync with upstream****:
+
+```bash
+
+git fetch upstream
+
+git rebase upstream/main
+
+```
