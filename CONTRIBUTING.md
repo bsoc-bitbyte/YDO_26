@@ -16,7 +16,7 @@
 Because this app handles sensitive student data, **privacy is our #1 priority**. When writing code, always double-check that you:
 * **NEVER** use `console.log()` to print secret words (mnemonics), private keys, or who a user liked. 
 * **NEVER** save raw, unprotected keys into the browser's local storage.
-* **NEVER** send raw keys or choices to any external server. Everything must happen safely on the user's device and disappear when they close the tab.
+* **NEVER** send raw keys or choices to any external server. Only encrypted data (if needed) may be persisted, and plaintext secrets should be cleared from memory as soon as possible.
 
 ---
 
@@ -44,7 +44,7 @@ git checkout -b fix/issue-description
 # Commit your changes following our commit message guidelines
 
 # Push your branch
-git push origin feat/your-feature-name
+git push origin HEAD
 ```
 
 Then, open a Pull Request (PR) to the `main` branch. Provide a clear description and reference related issues.
@@ -118,7 +118,7 @@ To help you understand how the application functions and where your code fits in
 |**1.Authentication**<br>Student signs up / logs in.|**Frontend & Backend**| • Build the Landing & Login/Registration pages.<br>• Configure Supabase Auth to reject non-`@iiitdmj.ac.in` domains.<br>• Pre-populate the database with student roll numbers to serve as a public directory. | Restrict access strictly to verified institutional credentials. |
 |**2.Key Generation**<br>User sets up local cryptographic keys. |**Frontend & Crypto**| • Create a page showing the 12-word seed phrase with a `.txt` auto-downloader utility.<br>• Build a verification page requiring the user to type the first 3 letters of their phrase.<br>• Implement client-side mnemonic and keypair generation via `ethers.js`. | Ensure public keys are sent to the users table while private keys remain *only* on-device. |
 |**3.The Vault**<br>Securing sensitive choices on device. |**Frontend & Crypto**| • Create a setup page for a user-defined 4-digit PIN.<br>• Implement `AES-GCM` encryption to lock the seed phrase in local storage via the PIN.<br>• Write logic to securely decrypt local storage using that PIN.<br>• Implement logic to encrypt plaintext choices and upload them safely to the `encrypted_vault`. | Prevent anyone from pulling raw, unencrypted private keys from browser storage. |
-| **4. Zero-Knowledge Submission**<br>User securely submits their choices. | **Frontend & Crypto** | • Build the Dashboard, Search, and Countdown layouts.<br>• Implement the Elliptic Curve Diffie-Hellman (ECDH) shared secret logic.<br>• Build the `submitLikes` function to generate SHA-256 hashes of shared secrets and push them to the database.<br>• Ensure local browser RAM is completely wiped clean of raw selections post-submission. | Only transmit one-way SHA-256 hashes to the database. Never send plaintext names or choices. |
+| **4.Anonymous Hashed Submission**<br>User securely submits their choices. | **Frontend & Crypto** | • Build the Dashboard, Search, and Countdown layouts.<br>• Implement the Elliptic Curve Diffie-Hellman (ECDH) shared secret logic.<br>• Build the `submitLikes` function to generate SHA-256 hashes of shared secrets and push them to the database.<br>• Ensure local browser RAM is completely wiped clean of raw selections post-submission. | Only transmit one-way SHA-256 hashes to the database. Never send plaintext names or choices. |
 |**5.Collision & Reveal**<br>The system processes and opens mutual matches.|**Backend & Crypto**| • Write a database rule that automatically rejects any new entries after the deadline passes.<br>• Write the Match Aggregation backend script to scan the database and group mutual matches (where hashes appear exactly twice).<br>• Automate exporting matched hashes into a lightweight, public `.json` asset.<br>• Build the Match Reveal Screen and implement the logic to match user choices locally against the downloaded JSON. | Run match calculations via secure database scripts only after the submissions close. |
 
 ---
@@ -133,7 +133,7 @@ Will be updated soon.
 If you have questions or need assistance:
 
 * Open an issue on the GitHub repository.
-* Reach out to the maintainers in the discord channel.
+* Reach out to the maintainers in the Discord channel.
 [![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/hYdPse79XF)
 
 
