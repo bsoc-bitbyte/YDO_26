@@ -101,6 +101,15 @@ Closes #789
 </details>
 
 ## Project Workflow & Implementation Guide
+### Developer Tracks & Implementation Steps
+
+Before starting on any of these tracks, please review the core logic requirements in the official [Specification Document](https://docs.google.com/document/d/1qz8RN1yN3RA55GolcHFKubSI9uPE6JB1gudcgsxRXEQ/edit?usp=sharing).
+
+| Track | Key Responsibilities | Technical Reference |
+| :--- | :--- | :--- |
+| **Cryptography** | Implement SHA-256 and ECDH logic for student anonymity. |[Section 5: Cryptographic Engine](https://docs.google.com/document/d/1qz8RN1yN3RA55GolcHFKubSI9uPE6JB1gudcgsxRXEQ/edit?tab=t.0#heading=h.g4os39we0o22)|
+| **Database/Backend** | Set up Supabase schemas and secure tables. |[Section 4: Database Schema](https://docs.google.com/document/d/1qz8RN1yN3RA55GolcHFKubSI9uPE6JB1gudcgsxRXEQ/edit?tab=t.0#heading=h.75etvpneewes)|
+| **Frontend/UI** | Build the Onboarding, Selection, and Reveal workflows. |[Section 6: Page User Flow](https://docs.google.com/document/d/1qz8RN1yN3RA55GolcHFKubSI9uPE6JB1gudcgsxRXEQ/edit?tab=t.0#heading=h.9xvjyer28tif)|
 
 To help you understand how the application functions and where your code fits in, use this sequential workflow table to guide your development tasks:
 
