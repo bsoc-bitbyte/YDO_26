@@ -1,6 +1,22 @@
-# Contributing to YDO
+<div align="center">
 
-Hello contributors both new and old! Please read the following guidelines before contributing.
+<h1>Contributing to YDO</h1>
+
+*Thank you for helping us build a secure, on-device encrypted platform.*
+
+![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
+![Commitizen Friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)
+
+</div>
+ Welcome! Thank you for your interest in contributing to YDO. Please read the following guidelines before submitting a pull request to ensure a smooth review process.
+
+---
+## The Golden Rule: Keep Secrets Secret!
+
+Because this app handles sensitive student data, **privacy is our #1 priority**. When writing code, always double-check that you:
+* **NEVER** use `console.log()` to print secret words (mnemonics), private keys, or who a user liked. 
+* **NEVER** save raw, unprotected keys into the browser's local storage.
+* **NEVER** send raw keys or choices to any external server. Everything must happen safely on the user's device and disappear when they close the tab.
 
 ---
 
@@ -16,18 +32,19 @@ Follow this general workflow for code contributions:
 ```bash
 # Fork the repository and clone your fork
 git clone [your-fork-url]
+cd YDO_26
 
 # Create a new branch
-git checkout -b feature/your-feature-name
+git checkout -b feat/your-feature-name
 # or
-git checkout -b bugfix/issue-description
+git checkout -b fix/issue-description
 
 # Make your changes
 
 # Commit your changes following our commit message guidelines
 
 # Push your branch
-git push origin feature/your-feature-name
+git push origin feat/your-feature-name
 ```
 
 Then, open a Pull Request (PR) to the `main` branch. Provide a clear description and reference related issues.
@@ -46,62 +63,32 @@ We use **Conventional Commits**. Our Commitlint configuration enforces the follo
 <footer>
 ```
 
-**Rules Explained:**
+<details>
+<summary><b>Click here to view detailed Commit Rules and Examples</b></summary>
 
-* **`<type>` (Mandatory):** Must be one of the following (lower-case):
+<br>
 
-  * `build`: Build system or external dependencies
+**Commit Rules Explained:**
 
-  * `chore`: Routine tasks (e.g., updating dependencies)
+* **`<type>` (Mandatory):** Must be one of the following:
 
-  * `ci`: CI configuration changes
+| Type | Description | Type | Description |
+|---|---|---|---|
+| `feat` | New feature | `fix` | Bug fix |
+| `docs` | Documentation-only changes | `style` | Code formatting, white-space |
+| `refactor` | Code restructuring (no behavior change) | `perf` | Performance improvements |
+| `test` | Adding/correcting tests | `chore` | Routine tasks (e.g., dependencies) |
+| `build` | Build system/external dependencies| `ci` | CI configuration changes |
+| `revert` | Reverting a previous commit | | |
 
-  * `docs`: Documentation-only changes
+* **`<scope>` (Optional):** Short description of the affected area (e.g., `frontend`, `backend-auth`).
+* **`<subject>` (Mandatory):** Concise description of the change. Use imperative, present tense (e.g., *add*, not *added*). Max 100 characters. No period at the end.
+* **`<body>` (Optional):** Describe *what* and *why*. Must start with a blank line after the subject. Max line length of 100 characters.
+* **`<footer>` (Optional):** Reference related issues (e.g., `Closes #123`, `Fixes #456`). Must start with a blank line after the body.
 
-  * `feat`: New feature
+**Example Commit Message:**
 
-  * `fix`: Bug fix
-
-  * `perf`: Performance improvements
-
-  * `refactor`: Code restructuring without behavior change
-
-  * `revert`: Reverting a previous commit
-
-  * `style`: Code formatting, white-space, etc.
-
-  * `test`: Adding/correcting tests
-
-* **`<scope>` (Optional):** Short description of the scope (e.g., `frontend`, `backend-auth`).
-
-* **`<subject>` (Mandatory):** Concise description of the change:
-
-  * Use imperative, present tense (e.g., add not added)
-
-  * No capitalization at the beginning
-
-  * No period (.) at the end
-
-  * Max 100 characters
-
-* **`<body>` (Optional):** Longer description of the commit:
-
-  * Start with a blank line after subject
-
-  * Describe what and why
-
-  * Max line length: 100 characters
-
-
-* **`<footer>` (Optional):** Information like breaking changes or issue references:
-
-  * Start with a blank line after body
-
-  * Reference issues (e.g., `Closes #123`, `Fixes #456`)
-
-**✅ Example Commit Message:**
-
-```
+```text
 feat(frontend): add responsive navigation bar
 
 This commit introduces a new responsive navigation bar for better user experience on mobile devices.
@@ -109,42 +96,23 @@ This commit introduces a new responsive navigation bar for better user experienc
 Closes #789
 ```
 
-To perform multiline commit message you could use `git commmit` and then write the message in your editor.
+>  **Tip:** To perform a multiline commit message, use `git commit` (without the `-m` flag) to write the message in your preferred code editor.
+
+</details>
+
+## Project Workflow & Implementation Guide
+
+To help you understand how the application functions and where your code fits in, use this sequential workflow table to guide your development tasks:
+
+|Workflow Step|Tech Domain|What to Implement (Your Tasks)|Core Focus|
+|:---|:---|:---|:---|
+|**1.Authentication**<br>Student signs up / logs in.|**Frontend & Backend**| • Build the Landing & Login/Registration pages.<br>• Configure Supabase Auth to reject non-`@iiitdmj.ac.in` domains.<br>• Pre-populate the database with student roll numbers to serve as a public directory. | Restrict access strictly to verified institutional credentials. |
+|**2.Key Generation**<br>User sets up local cryptographic keys. |**Frontend & Crypto**| • Create a page showing the 12-word seed phrase with a `.txt` auto-downloader utility.<br>• Build a verification page requiring the user to type the first 3 letters of their phrase.<br>• Implement client-side mnemonic and keypair generation via `ethers.js`. | Ensure public keys are sent to the users table while private keys remain *only* on-device. |
+|**3.The Vault**<br>Securing sensitive choices on device. |**Frontend & Crypto**| • Create a setup page for a user-defined 4-digit PIN.<br>• Implement `AES-GCM` encryption to lock the seed phrase in local storage via the PIN.<br>• Write logic to securely decrypt local storage using that PIN.<br>• Implement logic to encrypt plaintext choices and upload them safely to the `encrypted_vault`. | Prevent anyone from pulling raw, unencrypted private keys from browser storage. |
+| **4. Zero-Knowledge Submission**<br>User securely submits their choices. | **Frontend & Crypto** | • Build the Dashboard, Search, and Countdown layouts.<br>• Implement the Elliptic Curve Diffie-Hellman (ECDH) shared secret logic.<br>• Build the `submitLikes` function to generate SHA-256 hashes of shared secrets and push them to the database.<br>• Ensure local browser RAM is completely wiped clean of raw selections post-submission. | Only transmit one-way SHA-256 hashes to the database. Never send plaintext names or choices. |
+|**5.Collision & Reveal**<br>The system processes and opens mutual matches.|**Backend & Crypto**| • Write a database rule that automatically rejects any new entries after the deadline passes.<br>• Write the Match Aggregation backend script to scan the database and group mutual matches (where hashes appear exactly twice).<br>• Automate exporting matched hashes into a lightweight, public `.json` asset.<br>• Build the Match Reveal Screen and implement the logic to match user choices locally against the downloaded JSON. | Run match calculations via secure database scripts only after the submissions close. |
 
 ---
-
-## Development Workflow
-
-1. Frontend
-  * Landing Page
-  * Login/Registration Page
-  * A page showing the 12 word seed phrase with a feature to auto download the text file.
-  * A Page to enter the first three letters of the seed phrase to verify the user.
-  * A page to setup a 4 word pin.
-  * Dashboard Layout.
-  * Search Layout.
-  * Countdown page.
-  * Match Reveal Screen.
-  
-2. Backend
-  * Configure Supabase to reject all non *iiitdmj.ac.in domains.
-  * Pre-populate the database with all college roll numbers to serve as public directory.
-  * Implement a database rule that automatically rejects any new submissions after the deadline.  
-  * Write the Match Aggregation script to scan the database and group all mutual matches (hashes appearing exactly twice).  
-  * Setup the automated export of the matched hashes into a lightweight .json file. 
-
-3. Core Logic
-  * Implement mnemonic and keypair generation using ether.js
-  * Implement AES_GCM encryption to secure the 12 word phrase into the browser local storage.
-  * Implement the Elliptic Curve Diffie-Hellman (ECDH) shared secret logic.  
-  * Create the submitLikes function to generate SHA-256 hashes of the shared secret and push them to the database.  
-  * Implement logic to encrypt plaintext choices and upload them to the encrypted_vault.  
-  * Ensure local RAM is securely wiped of choices post-submission.
-  * Implement the logic to match users choices to the downloaded json file.
-  * Implement logic to decrypt local storage using the pin.
-
----
-
 ## Design Resources
 
 Will be updated soon.
@@ -156,6 +124,8 @@ Will be updated soon.
 If you have questions or need assistance:
 
 * Open an issue on the GitHub repository.
-* Reach out out the maintainers in the discord channel.
+* Reach out to the maintainers in the discord channel.
+[![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/hYdPse79XF)
 
-*NOTE:* Refrain from using DMs for questions. Do not use emojis or foul language in commit messages.
+
+*NOTE:* To keep discussions transparent, please ask questions in the public Discord channels or GitHub issues rather than DMs. Let's keep commit messages clean, professional, and emoji-free!
