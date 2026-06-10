@@ -1,10 +1,9 @@
 # Setting Up YDO Locally
 
-Thank you for your interest in YDO and your willingness to contribute.
 
 This guide walks you through getting the project and development environment running on your machine. Read it fully before running any commands.
 
-- --
+---
 
 ## Prerequisites
 
@@ -12,11 +11,11 @@ Make sure the following are installed before you begin:
 
 - Node.js via nvm or volta (recommended)
 - pnpm
-- Docker Desktop (required for local Supabase)
+- Docker (required for local Supabase)
 
-> ****Docker**** is required because ****Supabase**** runs as a set of containers (database, auth, storage) on your machine. It keeps the database environment isolated and consistent. If ****Docker Desktop**** is not running, those containers can't start and `supabase start` will fail. Make sure Docker Desktop is open and running before any Supabase commands.
+> Make sure **Docker** is open and running before any **Supabase** commands.
 
-- --
+---
 
 ## Steps
 
@@ -50,25 +49,17 @@ pnpm install
 
 ### 3. Set Up Local Supabase
 
-With Docker Desktop running, initialize and start Supabase:
+With Docker running, start Supabase:
 
 ```bash
-
-pnpm dlx supabase init      # run once to initialize the local project
-
 pnpm dlx supabase start     # starts the local Supabase instance
-
 ```
+
+> Note: Skip `pnpm dlx supabase init` if the `supabase/` directory already exists in the repository. Initialize it only otherwise.
 
 From the output, you will need two values for the next step:
 
-| Field | Where to find it in the output |
-
-|---|---|
-
-| NEXT_PUBLIC_SUPABASE_URL | Project URL under APIs |
-
-| NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY | Publishable under Authentication Keys |
+![supabase status output](assets/supabase.png)
 
 In case you want to revisit the same credentials, run
 
@@ -90,17 +81,17 @@ pnpm dlx supabase stop
 
 The project requires two separate env files. Create both in the locations below.
 
-- ***`.env.local`**** (root directory): connects Next.js to your local Supabase instance:
+- ***`.env.local`*** (root directory): connects Next.js to your local Supabase instance:
 
 ```env
 
-NEXT_PUBLIC_SUPABASE_URL=<API URL>
+NEXT_PUBLIC_SUPABASE_URL=<Project URL>
 
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<anon key>
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable key>
 
 ```
 
-- ***`supabase/.env`**** Google OAuth credentials for Supabase Auth:
+- ***`supabase/.env`*** Google OAuth credentials for Supabase Auth:
 
 To get OAuth credentials: go to Google Cloud Console, navigate to APIs & Services > Credentials, and create an OAuth 2.0 Client ID. Copy the client ID and secret into the fields below.
 
@@ -124,17 +115,19 @@ pnpm run dev
 
 Open http://localhost:3000 in your browser.
 
+---
+
 ## Troubleshooting
 
-- `supabase start` ***fails immediately****:
+- `supabase start` ***fails immediately***:
 
-Docker Desktop is not running. Start it and try again.
+Docker is not running. Start it and try again.
 
-- ***Environment variable errors on startup****:
+- ***Environment variable errors on startup***:
 
 Confirm `.env.local` exists in the root directory (not inside `app/`) and that both variables are filled in with values from the `supabase start` output.
 
-- ***Out of sync with upstream****:
+- ***Out of sync with upstream***:
 
 ```bash
 
