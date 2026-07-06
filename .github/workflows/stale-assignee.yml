@@ -38,8 +38,11 @@ on:
 permissions:
   issues: write
   pull-requests: read
-  
 
+concurrency:
+  group: stale-assignee-manager
+  cancel-in-progress: false
+
 jobs:
   stale-assignee:
     runs-on: ubuntu-latest
