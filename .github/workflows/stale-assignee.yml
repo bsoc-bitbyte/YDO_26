@@ -39,10 +39,12 @@ permissions:
   issues: write
   pull-requests: read
 
-concurrency:
-  group: stale-assignee-manager
-  cancel-in-progress: false
-
+concurrency:
+  group: stale-assignee-manager
+  cancel-in-progress: false
+
+
+
 jobs:
   stale-assignee:
     runs-on: ubuntu-latest
@@ -954,12 +956,14 @@ jobs:
               for(const assignee of assigneeOldEnoughToCheck){
                 let warningComment = latestwarningCommentMap.get(assignee);
 
-                if (
-                  warningComment &&
-                  !isAfter(warningComment.created_at, latestAssignedDateAt.get(assignee))
-                ) {
-                  warningComment = null;
-                }
+              if (
+                warningComment &&
+                !isAfter(warningComment.created_at, latestAssignedDateAt.get(assignee))
+              ) {
+                await deleteWarningComment(warningComment.id);
+                latestwarningCommentMap.delete(assignee);
+                warningComment = null;
+              }
 
                 const prActivityStatusCheck =  await getLinkedPullRequestActivityStatus(
                     issue.number,
@@ -975,9 +979,9 @@ jobs:
                     console.log(
                         `Issue ${issue.number}: PR status for @${assignee} id ${prActivityStatusCheck}.No Stale action`
                     );
-                    if(warningComment && (prActivityStatusCheck === STATUS.ACTIVE 
-                      || prActivityStatusCheck === STATUS.UNKNOWN || prActivityStatusCheck === STATUS.SKIP)){
-                        await deleteWarningComment(warningComment.id);
+                    if (warningComment && prActivityStatusCheck === STATUS.ACTIVE) {
+                      await deleteWarningComment(warningComment.id);
+                      latestwarningCommentMap.delete(assignee);
                     }
                     assigneeOldEnoughToCheck.delete(assignee);
                     continue;
@@ -991,13 +995,14 @@ jobs:
               // Remaining assignees are inactive; warn first, then unassign after grace period.
               for(const assignee of assigneeOldEnoughToCheck){
                 let warningComment = latestwarningCommentMap.get(assignee);
-
-                if (
-                  warningComment &&
-                  !isAfter(warningComment.created_at, latestAssignedDateAt.get(assignee))
-                ) {
-                  warningComment = null;
-                }
+              if (
+                warningComment &&
+                !isAfter(warningComment.created_at, latestAssignedDateAt.get(assignee))
+              ) {
+                await deleteWarningComment(warningComment.id);
+                latestwarningCommentMap.delete(assignee);
+                warningComment = null;
+              }
 
                 // No existing valid warning means this run only posts the warning.
                 if(!warningComment){
