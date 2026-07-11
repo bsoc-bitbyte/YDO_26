@@ -1,15 +1,5 @@
 @import "tailwindcss";
 
-@layer base {
-  *,
-  ::before,
-  ::after {
-    margin: 0;
-    padding: 0;
-  }
-}
-
-
 @theme {
 
 
@@ -30,5 +20,8 @@
     --text-xs: 12px;
     --text-base: 16px;
     --text-xl: 20px;
+  
+  /* ---------------------------------------------------------- */ 
+    --shadow-toast: 4px 4px 4px 0px rgba(0,0,0,0.42);
 
 }

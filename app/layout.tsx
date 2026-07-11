@@ -15,11 +15,8 @@ const courierPrime = Courier_Prime({
 });
 
 export const metadata: Metadata = {
-  title: "YDO — You Deserve One",
-  description: "A campus matchmaking experience built around privacy, mutual interest & meaningful connections.",
-  other: {
-    "mobile-web-app-capable": "yes",
-  },
+  title: "YDO",
+  description: "You Deserve One",
 };
 
 export default function RootLayout({
