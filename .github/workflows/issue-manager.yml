@@ -23,6 +23,19 @@ jobs:
           script: |
             const { eventName, payload } = context;
 
+            //have added function for label management.
+            async function addLabel(owner, repo, issue_number) {
+              try {
+                await github.rest.issues.addLabels({ owner, repo, issue_number, labels: ['contribution in progress'] });
+              } catch (e) { console.log('Label assignment failed:', e.status); }
+            }
+
+            async function removeLabel(owner, repo, issue_number) {
+              try {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number, name: 'contribution in progress' });
+              } catch (e) { console.log('Label removal failed:', e.status); }
+            }
+
             // -------------------------------------------------------------
             // EVENT: Manual Assignment via GitHub UI
             // -------------------------------------------------------------
@@ -49,20 +62,22 @@ jobs:
               if (payload.comment.user.type === 'Bot') return;
               if (payload.issue.pull_request) return;
 
-              const commentBody = payload.comment.body;
-              const isRequestingAssignment = /^\/assign(\s|$)/i.test(commentBody.trim());
-
-              // Exit early if the command isn't /assign
-              if (!isRequestingAssignment) return;
-
+              const commentBody = payload.comment.body.trim();
               const issue = payload.issue;
               const commenter = payload.comment.user.login;
+
+              const isAssignRequest = /^\/assign(\s|$)/i.test(commentBody);
+              const isAssignTo = /^\/assign-to(\s|$)/i.test(commentBody);
+              const isUnassign = /^\/unassign(\s|$)/i.test(commentBody);
+
+              // Exit early if no command
+              if (!isAssignRequest && !isAssignTo && !isUnassign) return;
               
               // Verify Maintainer Status
-              let isMaintainer = ['OWNER', 'MEMBER'].includes(payload.comment.author_association);
+              let isMaintainer = payload.comment.author_association === 'OWNER';
               
               // If they are a standard collaborator, do a strict check for write access
-              if (!isMaintainer && payload.comment.author_association === 'COLLABORATOR') {
+              if (!isMaintainer) {
                 try {
                   const { data: membership } = await github.rest.repos.getCollaboratorPermissionLevel({
                     owner: context.repo.owner,
@@ -91,56 +106,183 @@ jobs:
                 console.log('Failed to add reaction:', e);
               }
 
-              // Bouncer Check 1: Is it already assigned? (Fetch fresh state to prevent race conditions)
-              const { data: freshIssue } = await github.rest.issues.get({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issue.number
-              });
-
-              if (freshIssue.assignees.length > 0) {
-                await github.rest.issues.createComment({
+              if(isAssignRequest){
+                // Bouncer Check 1: Is it already assigned? (Fetch fresh state to prevent race conditions)
+                const { data: freshIssue } = await github.rest.issues.get({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  issue_number: issue.number,
-                  body: `@${commenter} Thanks for your interest! However, this issue is already assigned and in progress. Please look for an unassigned issue to work on.`
+                  issue_number: issue.number
                 });
-                return;
-              }
 
-              // Bouncer Check 2: Does the user have too many issues? (Maintainers bypass this)
-              if (!isMaintainer) {
-                let issuesOnly;
-                try {
-                  const allOpen = await github.paginate(github.rest.issues.listForRepo, {
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    assignee: commenter,
-                    state: 'open',
-                    per_page: 100
-                  });
-                  issuesOnly = allOpen.filter(i => !i.pull_request);
-                } catch (e) {
-                  console.error('Failed to fetch assignee issues:', e);
-                  return;
-                }
-
-                if (issuesOnly.length >= 2) {
+                if (freshIssue.assignees.length > 0) {
                   await github.rest.issues.createComment({
                     owner: context.repo.owner,
                     repo: context.repo.repo,
                     issue_number: issue.number,
-                    body: `@${commenter} You are currently assigned to ${issuesOnly.length} open issues. You can only work on a maximum of 2 issues at a time. Please complete your current tasks before requesting new ones!`
+                    body: `@${commenter} Thanks for your interest! However, this issue is already assigned and in progress. Please look for an unassigned issue to work on.`
                   });
                   return;
                 }
+
+                // Bouncer Check 2: Does the user have too many issues? (Maintainers bypass this)
+                if (!isMaintainer) {
+                  let issuesOnly;
+                  try {
+                    const allOpen = await github.paginate(github.rest.issues.listForRepo, {
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      assignee: commenter,
+                      state: 'open',
+                      per_page: 100
+                    });
+                    issuesOnly = allOpen.filter(i => !i.pull_request);
+                  } catch (e) {
+                    console.error('Failed to fetch assignee issues:', e);
+                    return;
+                  }
+
+                  if (issuesOnly.length >= 2) {
+                    await github.rest.issues.createComment({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: issue.number,
+                      body: `@${commenter} You are currently assigned to ${issuesOnly.length} open issues. You can only work on a maximum of 2 issues at a time. Please complete your current tasks before requesting new ones!`
+                    });
+                    return;
+                  }
+                }
+
+                // Log the valid request for a maintainer to review
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  body: `@${commenter} Your request has been logged! A maintainer will review the requests and assign this issue manually.`
+                });
               }
 
-              // Log the valid request for a maintainer to review
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issue.number,
-                body: `@${commenter} Your request has been logged! A maintainer will review the requests and assign this issue manually.`
-              });
+              
+              // NEW COMMAND: /assign-to @user (Maintainers only)
+
+              // Note: This intentionally bypasses the 2-issue cap and already-assigned checks as a maintainer override.
+              if (isAssignTo) {
+                if (!isMaintainer) {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    body: `@${commenter} Only maintainers can use the \`/assign-to\` command.`
+                  });
+                  return;
+                }
+
+                const mentions = commentBody.match(/@[\w-]+/g) || [];
+                const usersToAssign = mentions.map(m => m.substring(1));
+
+                if (usersToAssign.length === 0) {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    body: `@${commenter} Please specify at least one user, e.g., \`/assign-to @username\`.`
+                  });
+                  return;
+                }
+
+                // Verify the users actually commented /assign
+                const comments = await github.paginate(github.rest.issues.listComments, {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  per_page: 100
+                });
+
+                const requestedUsers = new Set(
+                  comments.filter(c => /^\/assign(\s|$)/i.test(c.body.trim())).map(c => c.user.login)
+                );
+
+                const validUsers = usersToAssign.filter(u => requestedUsers.has(u));
+                const invalidUsers = usersToAssign.filter(u => !requestedUsers.has(u));
+
+                if (invalidUsers.length > 0) {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    body: `Skipped assigning ${invalidUsers.map(u => `@${u}`).join(', ')} because they did not request it via \`/assign\`.`
+                  });
+                }
+
+                if (validUsers.length > 0) {
+                  await github.rest.issues.addAssignees({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    assignees: validUsers  
+                  });
+                  await addLabel(context.repo.owner, context.repo.repo, issue.number);
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    body: `Successfully assigned ${validUsers.map(u => `@${u}`).join(', ')}.`
+                  });
+                }
+              }
+
+
+              // NEW COMMAND: /unassign [@user] (Maintainers only)
+
+              if (isUnassign) {
+                if (!isMaintainer) {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    body: `@${commenter} Only maintainers can use the \`/unassign\` command.`
+                  });
+                  return; 
+                }
+
+                const mentions = commentBody.match(/@[\w-]+/g) || [];
+                let usersToUnassign = mentions.map(m => m.substring(1));
+
+                if (usersToUnassign.length === 0) {
+                  // find out who is actually assigned
+                  const { data: currentIssue } = await github.rest.issues.get({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number
+                  });
+                  
+                  const currentAssignees = currentIssue.assignees.map(a => a.login);
+                  
+                  // If no one is assigned, exit cleanly to prevent a 422 error
+                  if (currentAssignees.length === 0) {
+                    console.log('No assignees to remove. Exiting cleanly.');
+                    return;
+                  }
+                  
+                  // Default to unassigning everyone currently assigned to the issue
+                  usersToUnassign = currentAssignees;
+                }
+
+                try {
+                  await github.rest.issues.removeAssignees({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    assignees: usersToUnassign
+                  });
+                  await removeLabel(context.repo.owner, context.repo.repo, issue.number);
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    body: `Successfully unassigned ${usersToUnassign.join(', ')}.`
+                  });
+                } catch (error) {
+                  console.error('Failed to unassign users. They might not be assigned to the issue.', error);
+                }
+              }
             }

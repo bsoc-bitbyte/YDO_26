@@ -1,0 +1,1035 @@
+# Scheduled workflow that warns stale issue assignees and later unassigns them.
+# The actual decision logic lives inside the github-script step below.
+name: Stale Assignee Manager
+
+# Run automatically once per day, and allow manual runs for testing.
+on:
+  schedule:
+    - cron: "0 0 * * *"
+
+  # Manual trigger inputs make it easier to test the workflow safely.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "If true, only log actions. If false, actually comment/unassign/remove label."
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+      days_before_warning:
+        description: "Days after assignment before checking assignee. Use 0 for fake repo testing."
+        required: true
+        default: "5"
+
+      activity_window_days:
+        description: "How many recent days count as activity. Use 5 for normal behavior."
+        required: true
+        default: "5"
+
+      days_after_warning:
+        description: "Grace period after warning. Use 0 for fake repo testing."
+        required: true
+        default: "2"
+
+# Minimal permissions needed: read PRs, write issue comments/labels/assignees.
+permissions:
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: stale-assignee-manager
+  cancel-in-progress: false
+
+
+
+jobs:
+  stale-assignee:
+    runs-on: ubuntu-latest
+
+    # Runtime knobs exposed through workflow_dispatch for dry-run and fake-repo testing.
+    env:
+      DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+      DAYS_BEFORE_WARNING: ${{ github.event.inputs.days_before_warning || '5' }}
+      ACTIVITY_WINDOW_DAYS: ${{ github.event.inputs.activity_window_days || '5' }}
+      DAYS_AFTER_WARNING: ${{ github.event.inputs.days_after_warning || '2' }}
+
+    # The workflow uses github-script so the stale logic can call REST and GraphQL APIs directly.
+    steps:
+      - name: Warn and unassign inactive contributors
+        uses: actions/github-script@v7
+        with:
+          # JavaScript implementation executed by actions/github-script.
+          script: |
+            // Label used to select issues that currently have someone working on them.
+            const IN_PROGRESS_LABEL = 'contribution in progress';
+            // Hidden marker used as persistent state so no database is needed.
+            const WARNING_TAG = "<!-- stale-assignee-warning:";
+
+            // In dry-run mode, the script logs intended write actions instead of performing them.
+            const DRY_RUN = process.env.DRY_RUN === "true";
+
+            // Main timing configuration; keep these easy to find and change.
+            const DAYS_BEFORE_WARNING = Number(process.env.DAYS_BEFORE_WARNING || 5);
+            const ACTIVITY_WINDOW_DAYS = Number(process.env.ACTIVITY_WINDOW_DAYS || DAYS_BEFORE_WARNING);
+            const DAYS_AFTER_WARNING = Number(process.env.DAYS_AFTER_WARNING || 2);
+            const MS_PER_DAY = 24 * 60 * 60 * 1000;
+            const dateNow = Date.now();
+
+            // Internal PR activity states used by the stale decision flow.
+            const STATUS = {
+              ACTIVE: "ACTIVE",
+              INACTIVE: "INACTIVE",
+              SKIP: "SKIP",
+              UNKNOWN: "UNKNOWN",
+            };
+
+            const MAINTAINER_AUTHOR_ASSOCIATIONS = new Set([
+              "OWNER",
+              "MEMBER",
+              "COLLABORATOR",
+            ]);
+
+            // Repository identity from the workflow context.
+            const owner = context.repo.owner ; 
+            const repo = context.repo.repo ; 
+
+            //Date calculation helper
+            function daysSince(date){
+              return (dateNow - new Date(date).getTime())/MS_PER_DAY;
+            }
+
+
+            function isMaintainerLikeActivity(authorLogin, authorAssociation, assigneeLogin) {
+              if (!authorLogin || authorLogin === assigneeLogin) {
+                return false;
+              }
+
+              if (authorLogin.endsWith("[bot]")) {
+                return false;
+              }
+
+              return MAINTAINER_AUTHOR_ASSOCIATIONS.has(authorAssociation);
+            }
+
+            // Post the first warning and include the hidden marker for this assignee.
+            async function postWarningComment(issueNumber,assigneeLogin){
+              if (DRY_RUN) {
+                console.log(`[DRY RUN] Would post warning comment for @${assigneeLogin} on issue #${issueNumber}`);
+                return;
+              }
+                await github.rest.issues.createComment({
+                    owner,
+                    repo,
+                    issue_number : issueNumber,
+                    body : `${WARNING_TAG}${assigneeLogin} -->
+                    
+                    @${assigneeLogin}, this issue appears to have been inactive for ${DAYS_BEFORE_WARNING}+ days.
+                    Please comment here or update your linked PR within ${DAYS_AFTER_WARNING} days. If there is still no activity, you may be unassigned so someone else can work on it.`
+                });
+            }
+
+            // Remove only the inactive assignee from the issue.
+            async function unassignContributor(issueNumber,assigneeLogin){
+              if (DRY_RUN) {
+                console.log(`[DRY RUN] Would unassign @${assigneeLogin} from issue #${issueNumber}`);
+                return;
+              }
+                await github.rest.issues.removeAssignees({
+                    owner,
+                    repo,
+                    issue_number: issueNumber,
+                    assignees : [assigneeLogin]
+                });
+            }
+
+            // Remove the in-progress label when no assignees remain.
+            async function removeInProgressLabel(issueNumber) {
+              if (DRY_RUN) {
+                console.log(`[DRY RUN] Would remove label "${IN_PROGRESS_LABEL}" from issue #${issueNumber}`);
+                return;
+              }
+                try{
+                    await github.rest.issues.removeLabel({
+                        owner,
+                        repo,
+                        issue_number:issueNumber,
+                        name : IN_PROGRESS_LABEL
+                    });
+                }catch(err){
+                    console.log(`Error in Removing Label : ${err}`);
+                    if(err.status != 404){
+                        throw err;
+                    }
+                }
+            }
+
+            // Explain why the user was unassigned and how they can request assignment again.
+            async function postUnassignComment(issueNumber, assigneeLogin) {
+              if (DRY_RUN) {
+                console.log(`[DRY RUN] Would post unassign comment for @${assigneeLogin} on issue #${issueNumber}`);
+                return;
+              }
+                await github.rest.issues.createComment({
+                    owner,
+                    repo,
+                    issue_number: issueNumber,
+                    body: `@${assigneeLogin}, you have been unassigned because this issue remained inactive after the warning grace period.
+
+                    You can request assignment again with \`/assign\` when you are ready to continue.`
+                });
+            }
+
+            // Small date comparison helpers used throughout issue and PR activity checks.
+            function isAfter(date,referencedDate){
+                return new Date(date) > new Date(referencedDate);
+            }
+            function isRecent(date,days){
+                return Boolean(date) && daysSince(date) < days;
+            }
+
+            //Build latest Assigned Map For The assignees(helper function)
+            // Build assignee -> latest assignment date from issue timeline events.
+            function buildLatestAssignedAt(timeline){
+              const latestassignedat = new Map();
+
+              for(const event of timeline){
+
+                if(event.event == "assigned"){
+                  if (!event.assignee || !event.assignee.login) {
+                    continue;
+                  }
+                  const assigneelogin = event.assignee.login;
+                  const createdAtDate = event.created_at;
+                  const previousDateInMap = latestassignedat.get(assigneelogin);
+                  if(previousDateInMap  && new  Date(previousDateInMap).getTime()> new Date(createdAtDate).getTime()){
+                    continue;
+                  }
+                  else{
+                    latestassignedat.set(assigneelogin,createdAtDate);
+                  }
+                }
+              }
+              return latestassignedat;
+            }
+
+            //Helper Function To Find User Old Enough To check Further 
+            // Select current assignees whose latest assignment is old enough to inspect.
+            function buildAssigneeOldEnough(latestassignemap,currentAssigneesSet){
+              const assigneeToCheckFurther = new Set();
+              for (const data of latestassignemap){
+                const [assigneelogin,latestassignedDate] = data;
+                const daysPassed = daysSince(latestassignedDate);
+                if (!currentAssigneesSet.has(assigneelogin)) {
+                  continue;
+                }
+                if(daysPassed>=DAYS_BEFORE_WARNING){
+                  assigneeToCheckFurther.add(assigneelogin);
+                }
+              }
+              return assigneeToCheckFurther;
+            }
+
+            //Latest comment Building Function 
+            // Build two maps from issue comments:
+            // 1. user -> latest issue comment date
+            // 2. assignee -> latest stale-warning comment object
+            function buildLatestCommentByUser(comments,warningCommentMap){
+              const latestCommentMap = new Map();
+              
+              for ( const comment of comments){
+                if(!comment.user || !comment.user.login) continue;
+                if (comment.body && comment.body.includes(WARNING_TAG)){
+                  const body = comment.body;
+                  const match = body.match(/<!-- stale-assignee-warning:([a-zA-Z0-9-]+) -->/);
+                  if(!match)continue;
+                  const assigneeLogin = match[1];
+                  const previousCreatedAtDate = warningCommentMap.get(assigneeLogin);
+                  if (!previousCreatedAtDate || new Date(comment.created_at).getTime() > new Date(previousCreatedAtDate.created_at).getTime()){
+                    warningCommentMap.set(assigneeLogin,comment);
+                  }
+                }
+                const login = comment.user.login ; 
+                const createdAt = comment.created_at;
+                const previousDate = latestCommentMap.get(login);
+                if(previousDate && new Date(createdAt).getTime() > new Date(previousDate).getTime()){
+                  latestCommentMap.set(login,createdAt);
+                }
+                if(!previousDate){
+                  latestCommentMap.set(login,createdAt);
+                }
+              }
+              return latestCommentMap;
+            }
+
+            // Delete a stale warning when activity resumes or the state should reset.
+            async function deleteWarningComment(commentId){
+              if (DRY_RUN) {
+                console.log(`[DRY RUN] Would delete warning comment id ${commentId}`);
+                return;
+              }
+              await github.rest.issues.deleteComment({
+                owner,
+                repo,
+                comment_id : commentId
+              });
+            }
+            
+            //Function to fetch all the Pull requests 
+            // Fetch all PRs so linked PRs can be discovered from their bodies.
+            async function listAllPullRequests(){
+              return await github.paginate(github.rest.pulls.list,{
+                owner,
+                repo,
+                state : "all",
+                sort : "updated" ,
+                direction : "desc",
+                per_page : 100 
+              });
+            }
+
+            // Parse Fixes/Closes/Resolves/Part of references and return issue numbers as Numbers.
+            function extractReferencedIssueNumbers(prBody){
+                const referencedIssueNumbers = new Set();
+                if(!prBody){
+                    return referencedIssueNumbers;
+                }
+                const regex = /\b(?:(?:fix(?:e[sd])?|close[sd]?|resolve[sd]?)\s*:?\s+(?:[\w.-]+\/[\w.-]+)?#(\d+)|part\s+of\s*:?\s+(?:[\w.-]+\/[\w.-]+)?#(\d+))(?!\d)/gi;
+                let match ;
+                while((match = regex.exec(prBody)) !== null){
+                    const issueNumber = Number((match[1] || match[2]));
+                    if(Number.isInteger(issueNumber)){
+                        referencedIssueNumbers.add(issueNumber);
+                    }
+                }
+                return referencedIssueNumbers;
+            }
+
+            // Stable map key for one issue + one assignee.
+            function linkedPrKeyMacro(issueNumber,AssigneeLogin){
+                return `${issueNumber}:${AssigneeLogin}`;
+            }
+
+            // Read linked PRs for a specific issue-assignee pair without scanning all PRs again.
+            function linkedPrLookupMacro(linkedPrForAssigneeMap,issueNumber,assigneeLogin){
+                return linkedPrForAssigneeMap.get(linkedPrKeyMacro(issueNumber,assigneeLogin)) || [];
+            }
+            // Cache key so the same PR-assignee pair is not inspected twice in one run.
+            function prActivityCacheKeyMacro(pullNumber,assigneeLogin){
+                return `${pullNumber}:${assigneeLogin}`;
+            }
+
+            //Function To Find Pr for assignee
+            // Build issue+assignee -> linked PRs map.
+            // Only PRs authored by a current assignee count as that assignee's PR activity.
+            function buildlinkedPrForAssigneeMap(allPullRequests,targetIsssueNUmbers,assigneeOnIssueMap){
+                const linkedPrForAssigneeMap = new Map();
+                for(const prLinked of allPullRequests){
+                    if(!prLinked.user || !prLinked.user.login) continue;
+                    const prBody = prLinked.body;
+                    const prAuthor = prLinked.user.login;
+                    const referencedIssueNumbers = extractReferencedIssueNumbers(prBody || "");
+                    for(const issueNumber of referencedIssueNumbers){
+                        if(!targetIsssueNUmbers.has(issueNumber))continue;
+                        const assigneeSet = assigneeOnIssueMap.get(issueNumber);
+                        if(!assigneeSet || !assigneeSet.has(prAuthor))continue;
+                        const linkedPrKey = linkedPrKeyMacro(issueNumber,prAuthor);
+                        if(!linkedPrForAssigneeMap.has(linkedPrKey)){
+                            linkedPrForAssigneeMap.set(linkedPrKey,[]);
+                        }
+                        linkedPrForAssigneeMap.get(linkedPrKey).push(prLinked);
+                    }
+                }
+                return linkedPrForAssigneeMap;
+            }
+
+
+            // Find the latest commit authored or committed by the assignee on this PR.
+            function getLatestAssigneeCommitAt(pullRequest,assigneeLogin){
+                const allCommits = pullRequest.commits.nodes;
+                let latestDate =null;
+                for(const commit of allCommits){
+                    const commitDate = commit.commit.committedDate;
+                    const authorDate = commit.commit.authoredDate ;
+                    const authorLogin = commit.commit.author?.user?.login;
+                    const commiterLogin = commit.commit.committer?.user?.login;
+                    if(!(authorLogin === assigneeLogin) && !(commiterLogin === assigneeLogin)){
+                        continue;
+                    }
+                    const eitherDate = commitDate || authorDate;
+                    if(!latestDate){
+                        latestDate=eitherDate;
+                        continue;
+                    }
+                    if(new Date(eitherDate).getTime()>new Date(latestDate).getTime()){
+                        latestDate = eitherDate;
+                    }
+                }
+                return latestDate;
+            }
+
+            // Find latest CHANGES_REQUESTED review by someone other than the assignee.
+            // This is the point after which the assignee must respond.
+            function getLatestActionRequiredAt(pullRequest, assigneeLogin) {
+              let latestDate = null;
+
+              for (const review of pullRequest.reviews.nodes) {
+                if (
+                  !isMaintainerLikeActivity(
+                    review.author?.login,
+                    review.authorAssociation,
+                    assigneeLogin
+                  )
+                ) {
+                  continue;
+                }
+                if (review.state !== "CHANGES_REQUESTED" && review.state !== "COMMENTED") {
+                  continue;
+                }
+
+                if (!latestDate || isAfter(review.createdAt, latestDate)) {
+                  latestDate = review.createdAt;
+                }
+              }
+
+              for (const comment of pullRequest.comments.nodes) {
+                if (
+                  !isMaintainerLikeActivity(
+                    comment.author?.login,
+                    comment.authorAssociation,
+                    assigneeLogin
+                  )
+                ) {
+                  continue;
+                }
+                if (!latestDate || isAfter(comment.createdAt, latestDate)) {
+                  latestDate = comment.createdAt;
+                }
+              }
+              
+
+              return latestDate;
+            }
+
+            // Find latest normal PR conversation comment by the assignee.
+            function getLatestAssigneePrCommentAt(pullRequest, assigneeLogin){
+                let latestCommentAt = null;
+
+                for(const comment of pullRequest.comments.nodes){
+                    if(!comment.author || comment.author.login !== assigneeLogin) continue;
+
+                    if(!latestCommentAt || isAfter(comment.createdAt, latestCommentAt)){
+                        latestCommentAt = comment.createdAt;
+                    }
+                }
+
+                return latestCommentAt;
+            }
+
+            // Find latest Non Assignee Review Comment Date 
+            function getLatestNonAssigneeReviewCommentAt(reviewCommentMap, assigneeLogin) {
+              let latestDate = null;
+
+              for (const [login, comments] of reviewCommentMap) {
+                for (const comment of comments) {
+                  if (
+                    !isMaintainerLikeActivity(
+                      login,
+                      comment.authorAssociation,
+                      assigneeLogin
+                    )
+                  ) {
+                    continue;
+                  }
+
+                  if (!latestDate || isAfter(comment.createdAt, latestDate)) {
+                    latestDate = comment.createdAt;
+                  }
+                }
+              }
+
+              return latestDate;
+            }
+
+            // Check whether the assignee replied in the PR conversation after a reference date.
+            function hasAssigneeCommentAfter(pullRequest,assigneeLogin,referencedDate){
+                const comments = pullRequest.comments.nodes;
+                for(const comment of comments){
+                    if(!comment.author || comment.author.login !== assigneeLogin) continue;
+                    const commentDate = comment.createdAt;
+                    if(isAfter(commentDate,referencedDate)){
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            // Fetch inline review comments and group their timestamps by commenter login.
+            async function buildReviewCommentMap(pullNumber){
+                const reviewCommentMap = new Map();
+                const reviewComments = await github.paginate(
+                    github.rest.pulls.listReviewComments,{
+                        owner,
+                        repo,
+                        pull_number: pullNumber,
+                        per_page : 100
+                    }
+                )
+                for(const reviewComment of reviewComments){
+                    if(!reviewComment.user || !reviewComment.user.login)continue;
+                    const assigneeLogin = reviewComment.user.login;
+                    const createdAt = reviewComment.created_at;
+                    if (!reviewCommentMap.has(assigneeLogin)) {
+                      reviewCommentMap.set(assigneeLogin, []);
+                    }
+                    reviewCommentMap.get(assigneeLogin).push({
+                    createdAt: reviewComment.created_at,
+                    authorAssociation: reviewComment.author_association,
+                  });
+
+                }
+                return reviewCommentMap;
+            }
+            // Check whether the assignee replied to an inline review comment after a reference date.
+            function hasAssigneeReviewCommentAfter(reviewCommentMap,assigneeLogin,referencedDate){
+                const assigneeReviewCommentDateSet = reviewCommentMap.get(assigneeLogin);
+                if(!assigneeReviewCommentDateSet){
+                    return false;
+                }
+                for(const reviewComment of assigneeReviewCommentDateSet){
+                    if(isAfter(reviewComment.createdAt,referencedDate)){
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            // Closed-but-unmerged PRs are not instantly stale.
+            // Use closedAt as the reference point and look for assignee response after closure.
+            async function getClosedPrStatus(pullRequest, pullNumber, assigneeLogin) {
+              const closedAt = pullRequest.closedAt;
+
+              if (!closedAt){
+                return STATUS.UNKNOWN;
+              }
+              if (isRecent(closedAt, ACTIVITY_WINDOW_DAYS)){
+                return STATUS.ACTIVE;
+              }
+              const latestAssigneePrCommentAt = getLatestAssigneePrCommentAt(pullRequest,assigneeLogin);
+
+              const reviewCommentMap = await buildReviewCommentMap(pullNumber);
+              let latestAssigneeReviewCommentAt = null;
+              const assigneeReviewCommentDates = reviewCommentMap.get(assigneeLogin);
+
+              if (assigneeReviewCommentDates){
+                for (const reviewComment of assigneeReviewCommentDates){
+                  if (
+                    !latestAssigneeReviewCommentAt ||
+                    isAfter(reviewComment.createdAt, latestAssigneeReviewCommentAt)
+                  ) {
+                    latestAssigneeReviewCommentAt = reviewComment.createdAt;
+                  }
+                }
+              }
+
+              if(
+                latestAssigneePrCommentAt && isAfter(latestAssigneePrCommentAt, closedAt) &&
+                isRecent(latestAssigneePrCommentAt, ACTIVITY_WINDOW_DAYS)
+              ){
+                return STATUS.ACTIVE;
+              }
+
+              if(
+                latestAssigneeReviewCommentAt && isAfter(latestAssigneeReviewCommentAt,closedAt) &&
+                isRecent(latestAssigneeReviewCommentAt,ACTIVITY_WINDOW_DAYS)
+              ) {
+                return STATUS.ACTIVE;
+              }
+              return STATUS.INACTIVE;
+            }
+
+            // Inspect one linked PR and classify whether it keeps the assignee active.
+            // Conservative failures return UNKNOWN, which prevents accidental unassignment.
+
+            async function inspectSinglePrActivity(pullNumber,assigneeLogin,prActivityStatusCache){
+                const cacheKey = prActivityCacheKeyMacro(pullNumber,assigneeLogin);
+                if(prActivityStatusCache.has(cacheKey)){
+                    return prActivityStatusCache.get(cacheKey);
+                }
+                let finalStatus = STATUS.UNKNOWN;
+                 
+
+                try{
+                    const pullRequest = await getPullRequestQueryByGraphQl(pullNumber);
+                    if(!pullRequest){
+                        finalStatus = STATUS.UNKNOWN;
+                    }
+                    
+                    else if(pullRequest.author?.login !== assigneeLogin){
+                        
+                        finalStatus = STATUS.UNKNOWN;
+                    }
+                    
+                    // Merged PR means the work is effectively done; stop stale enforcement for this PR.
+                    else if(pullRequest.merged){
+                         
+                        const mergedAt = pullRequest.mergedAt || pullRequest.closedAt;
+
+                        if (isRecent(mergedAt, ACTIVITY_WINDOW_DAYS)) {
+                          finalStatus = STATUS.ACTIVE;
+                        } else {
+                          finalStatus = STATUS.INACTIVE;
+                        }
+                    }
+                    // Closed unmerged PR uses closedAt-based logic instead of immediate stale marking.
+                    else if(pullRequest.state === "CLOSED"){
+                        finalStatus = await getClosedPrStatus(
+                            pullRequest,
+                            pullNumber,
+                            assigneeLogin
+                        );
+                    }
+                    // Draft PRs need recent author activity; otherwise an old draft could keep assignment forever.
+                    else if (pullRequest.isDraft) {
+                      const latestAssigneeCommitAt = getLatestAssigneeCommitAt(
+                          pullRequest,
+                          assigneeLogin
+                      );
+
+                      const latestAssigneePrCommentAt = getLatestAssigneePrCommentAt(
+                          pullRequest,
+                          assigneeLogin
+                      );
+
+                      if (
+                          isRecent(pullRequest.createdAt, ACTIVITY_WINDOW_DAYS) ||
+                          isRecent(latestAssigneeCommitAt, ACTIVITY_WINDOW_DAYS) ||
+                          isRecent(latestAssigneePrCommentAt, ACTIVITY_WINDOW_DAYS)
+                      ) {
+                          finalStatus = STATUS.ACTIVE;
+                      } else {
+                          finalStatus = STATUS.INACTIVE;
+                      }
+                    }
+                    
+                    else{
+                        
+                        const latestAssigneeCommitAt = getLatestAssigneeCommitAt(
+                            pullRequest,
+                            assigneeLogin
+                          );
+
+                          let latestActionRequiredAt = getLatestActionRequiredAt(
+                            pullRequest,
+                            assigneeLogin
+                          );
+
+                          const reviewCommentMap = await buildReviewCommentMap(pullNumber);
+
+                          const latestInlineReviewCommentAt =
+                            getLatestNonAssigneeReviewCommentAt(
+                              reviewCommentMap,
+                              assigneeLogin
+                            );
+
+                          if (
+                            latestInlineReviewCommentAt &&
+                            (!latestActionRequiredAt || isAfter(latestInlineReviewCommentAt, latestActionRequiredAt))
+                          ) {
+                            latestActionRequiredAt = latestInlineReviewCommentAt;
+                          }
+
+                          if (!latestActionRequiredAt) {
+                            finalStatus = STATUS.ACTIVE;
+                          }
+                          else if (isRecent(latestActionRequiredAt, ACTIVITY_WINDOW_DAYS)) {
+                            finalStatus = STATUS.ACTIVE;
+                          }
+
+                          else if (
+                            latestAssigneeCommitAt &&
+                            isAfter(latestAssigneeCommitAt, latestActionRequiredAt)
+                          ) {
+                            finalStatus = STATUS.ACTIVE;
+                          }
+
+                          else if (
+                            hasAssigneeCommentAfter(
+                              pullRequest,
+                              assigneeLogin,
+                              latestActionRequiredAt
+                            )
+                          ) {
+                            finalStatus = STATUS.ACTIVE;
+                          }
+
+                          else if (
+                            hasAssigneeReviewCommentAfter(
+                              reviewCommentMap,
+                              assigneeLogin,
+                              latestActionRequiredAt
+                            )
+                          ) {
+                            finalStatus = STATUS.ACTIVE;
+                          }
+
+                          else {
+                            finalStatus = STATUS.INACTIVE;
+                          }
+                        }
+                      }
+                    
+                
+                catch(error){
+                    console.log(`PR #${pullNumber}: GraphQl/Rest Request Failed , Treating as UNKNOWN`);
+                    finalStatus = STATUS.UNKNOWN;
+                    console.log(String(error));
+                }
+                prActivityStatusCache.set(cacheKey,finalStatus);
+                return finalStatus;
+            }
+
+            // Combine all linked PR statuses for one issue-assignee pair.
+            // ACTIVE/UNKNOWN wins safely; INACTIVE only wins if no linked PR proves activity.
+            async function getLinkedPullRequestActivityStatus(
+                    issueNumber,
+                    assigneeLogin,
+                    linkedPrForAssigneeMap,
+                    prActivityStatusCache,
+                ) 
+            {
+                const linkedPullRequests = linkedPrLookupMacro(
+                    linkedPrForAssigneeMap,
+                    issueNumber,
+                    assigneeLogin
+                );
+
+                if (linkedPullRequests.length === 0) {
+                    console.log(`Issue #${issueNumber}: no linked PR found for @${assigneeLogin}.`);
+                    return STATUS.INACTIVE;
+                }
+
+                let sawInactivePullRequest = false;
+                let sawSkippedPullRequest = false;
+
+                for (const pullRequest of linkedPullRequests) {
+                    console.log(
+                    `Issue #${issueNumber}: checking linked PR #${pullRequest.number} for @${assigneeLogin}.`
+                    );
+
+                    const status = await inspectSinglePrActivity(
+                        pullRequest.number,
+                        assigneeLogin,
+                        prActivityStatusCache,
+                    );
+
+                    if (status === STATUS.ACTIVE) {
+                        return STATUS.ACTIVE;
+                    }
+
+                    if (status === STATUS.UNKNOWN) {
+                        return STATUS.UNKNOWN;
+                    }
+
+                    if (status === STATUS.INACTIVE) {
+                        sawInactivePullRequest = true;
+                        continue;
+                    }
+
+                    if (status === STATUS.SKIP) {
+                        sawSkippedPullRequest = true;
+                        continue;
+                    }
+                }
+
+                if (sawInactivePullRequest) {
+                    return STATUS.INACTIVE;
+                }
+
+                if (sawSkippedPullRequest) {
+                    return STATUS.SKIP;
+                }
+
+                return STATUS.UNKNOWN;
+            }
+            
+
+            //Fetching the Custom Querry For PullRequest by GraphQl
+            // GraphQL fetch for PR activity signals: state, draft status, reviews, comments, commits.
+            async function getPullRequestQueryByGraphQl(pullNumber) {
+                const result = await github.graphql(
+                    `
+                    query($owner :String!,$repo :String!,$pullNumber : Int!){
+                        repository(owner : $owner,name: $repo){
+                            pullRequest(number : $pullNumber){
+                                number
+                                state
+                                merged
+                                mergedAt
+                                createdAt
+                                closedAt
+                                isDraft
+                                author{
+                                    login
+                                }
+                                reviews(last : 100){
+                                    nodes{
+                                        createdAt
+                                        authorAssociation
+                                        author{
+                                            login
+                                        }
+                                        state
+                                    }
+                                }
+                                timelineItems(first : 100,itemTypes : [REVIEW_REQUESTED_EVENT]){
+                                    nodes{
+                                        __typename
+                                        ... on ReviewRequestedEvent{
+                                            createdAt
+                                        }
+                                    }
+                                }
+                                comments(last : 100){
+                                    nodes {
+                                        createdAt
+                                        authorAssociation
+                                        author{
+                                            login
+                                        }
+                                    }
+                                }
+                                commits(last : 100){
+                                    nodes{
+                                        commit{
+
+                                            committedDate
+                                            authoredDate
+                                            author{
+                                                user{
+                                                    login
+                                                }
+                                            }
+                                            committer{
+                                                user{
+                                                    login
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    
+                    }
+                    `,
+                    {
+                        owner,
+                        repo,
+                        pullNumber,
+                    }
+                )
+                return result.repository.pullRequest;
+            }
+
+            
+
+            //Fetching all open issues with "contribution in progress" label
+
+            // Start by fetching open labelled issues; PRs are skipped later.
+            const issues = await github.paginate(github.rest.issues.listForRepo,{
+              owner,
+              repo,
+              state : 'open',
+              labels : IN_PROGRESS_LABEL,
+              per_page : 100
+            });
+
+            // Store target issue numbers for O(1) lookup while parsing PR body references.
+            function buildTargetIssueNumbers(issues){
+                const targetIssueNumbers = new Set();
+                for(const issue of issues){
+                    if(issue.pull_request)continue;
+                    if (!issue.assignees || issue.assignees.length === 0) continue;
+                    targetIssueNumbers.add(issue.number);
+                }
+                return targetIssueNumbers;
+            }
+
+            // Build issue -> current assignees map used when linking PRs to assignees.
+            function buildAssigneeOnIssueMap(issues){
+                const assigneeOnIssueMap = new Map();
+                for(const issue of issues){
+                    if (issue.pull_request) continue;
+                    if (!issue.assignees || issue.assignees.length === 0) continue;
+                    assigneeOnIssueMap.set(
+                        issue.number,
+                        new Set(issue.assignees.map((assignee)=> assignee.login))
+                    );
+                }
+                return assigneeOnIssueMap;
+            }
+
+            // Preload PRs once, then build optimized maps before the issue loop.
+            const allPullRequests = await listAllPullRequests();
+            console.log(`Fetched ${allPullRequests.length} PullRequest for linked Pr`);
+
+            const targetIsssueNUmbers = buildTargetIssueNumbers(issues);
+
+            const assigneeOnIssueMap = buildAssigneeOnIssueMap(issues);
+
+            const linkedPrForAssigneeMap = buildlinkedPrForAssigneeMap(allPullRequests,targetIsssueNUmbers,assigneeOnIssueMap);
+
+            // Cache PR inspection results during this run only.
+            const prActivityStatusCache = new Map();
+
+
+            
+            // Main issue loop: each labelled issue is evaluated independently.
+            
+            for (const issue of issues){
+              if(issue.pull_request){
+                continue;
+              }
+              if(!issue.assignees || issue.assignees.length === 0){
+                continue;
+              }
+              // Track current assignees so reassigned/old timeline users are ignored.
+              const currentAssigneesSet = new Set(
+                issue.assignees.map(assignee => assignee.login)
+              );
+              // Timeline is needed because assignment age must come from assigned events, not issue creation.
+              const timeline = await github.paginate(github.rest.issues.listEventsForTimeline, {
+                owner,
+                repo,
+                issue_number: issue.number,
+                per_page: 100
+              });
+              
+              const latestAssignedDateAt = buildLatestAssignedAt(timeline);
+              const assigneeOldEnoughToCheck = buildAssigneeOldEnough(latestAssignedDateAt,currentAssigneesSet);
+
+              if(assigneeOldEnoughToCheck.size === 0){
+                console.log("Not Enough Asssignee to check in Issue # ",issue.number);
+                continue ;
+              }
+
+              // Fetch issue comments once; they provide both activity and warning state.
+              const comments = await github.paginate(github.rest.issues.listComments,{
+                owner,
+                repo,
+                issue_number: issue.number,
+                per_page : 100            
+              });
+
+              console.log(
+                `Issue #${issue.number}: checking assignees`,
+                Array.from(assigneeOldEnoughToCheck)
+              );
+
+              // This map will be filled by buildLatestCommentByUser with latest warning per assignee.
+              const latestwarningCommentMap = new Map();
+              const latestCommentByUserMap = buildLatestCommentByUser(comments,latestwarningCommentMap);
+
+              // First activity signal: recent issue comment from the assignee.
+              for(const assignee of assigneeOldEnoughToCheck){
+                const latestCommentedAt = latestCommentByUserMap.get(assignee);
+                const hasRecentActivity = latestCommentedAt && daysSince(latestCommentedAt) < ACTIVITY_WINDOW_DAYS;
+                const warningComment = latestwarningCommentMap.get(assignee);
+                if(hasRecentActivity){
+                  if(warningComment){
+                    await deleteWarningComment(warningComment.id);
+                  }
+                  assigneeOldEnoughToCheck.delete(assignee);
+                  continue;
+                }
+              
+              }  
+              
+              if(assigneeOldEnoughToCheck.size === 0){
+                continue;
+              }
+              
+              // Second activity signal: linked PR status for the assignee.
+              for(const assignee of assigneeOldEnoughToCheck){
+                let warningComment = latestwarningCommentMap.get(assignee);
+
+              if (
+                warningComment &&
+                !isAfter(warningComment.created_at, latestAssignedDateAt.get(assignee))
+              ) {
+                await deleteWarningComment(warningComment.id);
+                latestwarningCommentMap.delete(assignee);
+                warningComment = null;
+              }
+
+                const prActivityStatusCheck =  await getLinkedPullRequestActivityStatus(
+                    issue.number,
+                    assignee,
+                    linkedPrForAssigneeMap,
+                    prActivityStatusCache
+                )
+
+                if(prActivityStatusCheck === STATUS.ACTIVE || 
+                   prActivityStatusCheck === STATUS.UNKNOWN ||
+                   prActivityStatusCheck === STATUS.SKIP
+                ){
+                    console.log(
+                        `Issue ${issue.number}: PR status for @${assignee} id ${prActivityStatusCheck}.No Stale action`
+                    );
+                    if (warningComment && prActivityStatusCheck === STATUS.ACTIVE) {
+                      await deleteWarningComment(warningComment.id);
+                      latestwarningCommentMap.delete(assignee);
+                    }
+                    assigneeOldEnoughToCheck.delete(assignee);
+                    continue;
+                }
+              }
+              
+              if(assigneeOldEnoughToCheck.size === 0){
+                continue;
+              }
+
+              // Remaining assignees are inactive; warn first, then unassign after grace period.
+              for(const assignee of assigneeOldEnoughToCheck){
+                let warningComment = latestwarningCommentMap.get(assignee);
+              if (
+                warningComment &&
+                !isAfter(warningComment.created_at, latestAssignedDateAt.get(assignee))
+              ) {
+                await deleteWarningComment(warningComment.id);
+                latestwarningCommentMap.delete(assignee);
+                warningComment = null;
+              }
+
+                // No existing valid warning means this run only posts the warning.
+                if(!warningComment){
+                    console.log(`Issue #${issue.number}: @${assignee} is Inactive . posting warning comment`);
+                    await postWarningComment(issue.number,assignee);
+                    continue;
+                }
+                
+                // Warning exists but grace period has not expired yet.
+                if(daysSince(warningComment.created_at) < DAYS_AFTER_WARNING){
+                    console.log(
+                        `Issue #${issue.number}: warning for @${assignee} is not old enough yet.`
+                    );
+                    continue;
+                }
+
+                console.log(
+                    `Issue #${issue.number}: @${assignee} stayed inactive after warning. Unassigning.`
+                );
+                // Grace period expired and no activity resumed, so enforce unassignment.
+                await unassignContributor(issue.number,assignee);
+                await postUnassignComment(issue.number,assignee);
+                currentAssigneesSet.delete(assignee);
+                if(currentAssigneesSet.size === 0){
+                    await removeInProgressLabel(issue.number);
+                }
+                
+              }
+
+            }
