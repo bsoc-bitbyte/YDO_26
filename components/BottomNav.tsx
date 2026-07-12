@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Search, User } from "lucide-react";
+import Image from "next/image";
 
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Home" },
-  { href: "/search", label: "Search" },
-  { href: "/account", label: "Account" },
+  { href: "/dashboard", label: "Home", icon: "/icons/home.svg", activeIcon: "/icons/home-active.svg", size: 24 },
+  { href: "/search", label: "Search", icon: "/icons/search.svg", activeIcon: "/icons/search-active.svg", size: 24 },
+  { href: "/countdown", label: "Countdown", icon: "/icons/countdown.svg", activeIcon: "/icons/countdown-active.svg", size: 22},
+  { href: "/account", label: "Account", icon: "/icons/account.svg", activeIcon: "/icons/account-active.svg", size: 22 },
 ] as const;
 
 
@@ -17,24 +18,23 @@ export default function BottomNav() {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 flex justify-center pb-4 px-6">
       <ul
-        className="flex w-full max-w-sm items-center justify-around rounded-xl border vorder-black px-4 py-3"
-        style={{ backgroundColor: "var(--color-secondary)", paddingBottom: "5px" , paddingTop: "5px", marginBottom: "15px", width: "370px" }}
+        className="flex w-full items-center justify-evenly rounded-xl border border-black px-4"
+        style={{ backgroundColor: "var(--color-secondary)", paddingBottom: "5px", paddingTop: "5px", marginBottom: "20px", width: "350px" }}
       >
-        {NAV_ITEMS.map(({ href, label }) => {
+        {NAV_ITEMS.map(({ href, label, icon, activeIcon, size }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);
-         
           return (
             <li key={href}>
               <Link href={href} aria-current={active ? "page" : undefined}>
-                <span
-                  className="flex h-10 w-10 items-center justify-center rounded-full"
-                  style={active ? { backgroundColor: "var(--color-primary)" } : {}}
-                >
-                
-                  {label === "Home" && <Home size={24} strokeWidth={1.25} />}
-                  {label === "Search" && <Search size={24} strokeWidth={1.25} />}
-                  {label === "Account" && <User size={24} strokeWidth={1.25} />}
-
+                <span className="flex items-center justify-center" style={{ width: "43px", height: "43px" }}>
+                  {active ? (
+                    <div style={{ position: "relative", width: "43px", height: "43px" }}>
+                      <Image src="/icons/ellipse.svg" alt="" width={43} height={43} style={{ position: "absolute", top: 0, left: 0 }} />
+                      <Image src={activeIcon} alt={label} width={size} height={size} style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)" }} />
+                    </div>
+                  ) : (
+                    <Image src={icon} alt={label} width={size} height={size} />
+                  )}
                 </span>
               </Link>
             </li>
@@ -44,95 +44,3 @@ export default function BottomNav() {
     </nav>
   );
 }
-
-
-
-
-/*
-"use client";
-
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-
-const NAV_ITEMS = [
-  { href: "/dashboard", label: "Home" },
-  { href: "/search", label: "Search" },
-  { href: "/account", label: "Account" },
-] as const;
-
-function HomeIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth={active ? 2.2 : 1.6}>
-      <path d="M3 11.5 12 4l9 7.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"
-        strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function SearchIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth={active ? 2.2 : 1.6}>
-      <circle cx="11" cy="11" r="6.5" />
-      <path d="m20 20-4.3-4.3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function AccountIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.2 : 1.6}>
-      <circle cx="12" cy="8" r="3.5" />
-      <path d="M5 20c1.2-3.6 4-5.5 7-5.5s5.8 1.9 7 5.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-const icons = { Home: HomeIcon, Search: SearchIcon, Account: AccountIcon };
-
-export default function BottomNav() {
-  const pathname = usePathname();
-
-  return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 flex justify-center pb-4 px-6">
-      <ul
-        className="flex w-full max-w-sm items-center justify-around rounded-xl border vorder-black px-4 py-3"
-        style={{ backgroundColor: "var(--color-secondary)", paddingBottom: "5px" , paddingTop: "5px", marginBottom: "15px", width: "370px" }}
-      >
-        {NAV_ITEMS.map(({ href, label }) => {
-          const active = pathname === href || pathname.startsWith(`${href}/`);
-          const Icon = icons[label];
-
-          return (
-            <li key={href}>
-              <Link href={href} aria-current={active ? "page" : undefined}>
-                <span
-                  className="flex h-10 w-10 items-center justify-center rounded-full"
-                  style={active ? { backgroundColor: "var(--color-primary)" } : {}}
-                >
-                  <Icon active={active} />
-                </span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
-  );
-}
-*/
-
-
-
-
-
-
-
-
-
-
-
-
-
