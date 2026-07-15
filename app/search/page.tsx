@@ -3,8 +3,11 @@ import BottomNav from "@/components/BottomNav";
 import Image from "next/image";
 import { useState,useEffect } from "react";
 import { dummyProfiles,SELECTED_PROFILE_IDS_STORAGE_KEY ,type ProfileStruct} from "@/data/dummyProfiles";
+import { ProfileDetails } from "@/components/ProfileDetails";
 
-const PROFILES_PER_PAGE = 3;
+
+
+const PROFILES_PER_PAGE = 5;
 
 const commonInterests = [
   "Photography",
@@ -32,6 +35,7 @@ function SearchPage(){
   const [searchText, setSearchText] = useState("");
   const [selectedProfileIds, setSelectedProfileIds] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
+  const [viewedProfile, setViewedProfile] =useState<ProfileStruct | null>(null);
 
   useEffect(()=>{
     const storedIds = localStorage.getItem(SELECTED_PROFILE_IDS_STORAGE_KEY);
@@ -117,12 +121,30 @@ function SearchPage(){
                   onChange={(event)=>{
                     setSearchText(event.target.value);
                     setCurrentPage(1);
+                    setViewedProfile(null);
                   }}
                   placeholder="Enter name or roll no."
                   className="w-full bg-transparent text-[14px] outline-none placeholder:text-black/50 focus:outline-none"
                 />
               </div>
-              <div className="flex flex-col relative w-full mt-5 px-4 pb-28">
+              <div
+                  className={`relative mt-5 flex w-full flex-col pb-28 ${
+                    viewedProfile ? "px-0" : "px-4"
+                  }`}
+                >
+                {viewedProfile ? (
+                    <ProfileDetails
+                      profile={viewedProfile}
+                      onBack={() => setViewedProfile(null)}
+                      onSelect={() => profileSelect(viewedProfile.id)}
+                      isSelected={selectedProfileIds.has(viewedProfile.id)}
+                      isDisabled={
+                        !selectedProfileIds.has(viewedProfile.id) &&
+                        selectedProfileIds.size >= 5
+                      }
+                    />
+                  ) : (
+                    <>
                 <p className="text-[16px]  text-black tracking-[0.5px] leading-[16px] font-poppins ">
                   Search by common interests
                 </p>
@@ -167,6 +189,7 @@ function SearchPage(){
                               !selectedProfileIds.has(profile.id)&&selectedProfileIds.size>=5
                             }
                             onSelect={() => profileSelect(profile.id)}
+                            onView={() => setViewedProfile(profile)}
                           />
                         ))}
                       </div>
@@ -196,9 +219,13 @@ function SearchPage(){
                           </button>
                         </div>
                       )}
-                    </>
+                      
+                      </>
                   )}
                 </div>
+
+                    </>
+                  )}
               </div>
             </main>
             <BottomNav/>
@@ -206,15 +233,26 @@ function SearchPage(){
         
     );
 }
-function ProfileResultCard({profile,colorClass,isSelected,isDisabled,onSelect,
-}: {profile: ProfileStruct;colorClass: string;  isSelected: boolean;isDisabled: boolean;onSelect: () => void;}) {
+function ProfileResultCard({profile,colorClass,isSelected,isDisabled,onSelect,onView,
+}: {profile: ProfileStruct;colorClass: string;  isSelected: boolean;isDisabled: boolean;onSelect: () => void;onView: ()=>void;}) {
   return (
     <article
       className={`rounded-lg border px-4 py-3 shadow-[2px_2px_0_rgba(0,0,0,0.22)] ${colorClass}`}
     >
       <div className="flex items-start justify-between gap-3">
+        <button type="button" onClick={onView} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+          <div className="relative h-[41px] w-[41px] shrink-0 overflow-hidden rounded-sm border border-stroke bg-white">
+            {profile.profileImage && (
+              <Image
+              src={profile.profileImage}
+              alt={`${profile.name}'s profile`}
+              fill
+              sizes="41px"
+              className="object-cover"/>
+            )}
+          </div>
         <div>
-          <h3 className="text-[13px] font-semibold leading-4">
+          <h3 className="text-[13px] font-poppins leading-4">
             {profile.name}
           </h3>
 
@@ -222,7 +260,7 @@ function ProfileResultCard({profile,colorClass,isSelected,isDisabled,onSelect,
             Roll no. : {profile.rollNumber}
           </p>
         </div>
-
+        </button>
         <button
           type="button"
           disabled={isDisabled}
@@ -235,7 +273,7 @@ function ProfileResultCard({profile,colorClass,isSelected,isDisabled,onSelect,
         </button>
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-2">
+      {/* <div className="mt-2 flex flex-wrap gap-2">
         {profile.interests.map((interest) => (
           <span
             key={interest}
@@ -244,7 +282,7 @@ function ProfileResultCard({profile,colorClass,isSelected,isDisabled,onSelect,
             {interest}
           </span>
         ))}
-      </div>
+      </div> */}
     </article>
   );
 }

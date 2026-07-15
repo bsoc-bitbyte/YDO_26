@@ -3,7 +3,8 @@
 import { useState,useEffect } from "react";
 import Link from "next/link";
 import Image  from "next/image";
-import BottomNav from "@/components/BottomNav"
+import BottomNav from "@/components/BottomNav";
+import { ProfileDetails } from "@/components/ProfileDetails";
 import { profileById ,SELECTED_PROFILE_IDS_STORAGE_KEY,type ProfileStruct } from "@/data/dummyProfiles";
 const profileCardColors = [
   "border-stroke bg-secondary",
@@ -16,6 +17,7 @@ export default function DashboardPage() {
   const [showSystemMessage,setShowSystemMessage] = useState(true);
 
   const [selectedProfiles,setSelectedProfiles] = useState<ProfileStruct[]>([]);
+  const [viewedProfile, setViewedProfile] =useState<ProfileStruct | null>(null);
   useEffect(() => {
   const storedIds = localStorage.getItem(SELECTED_PROFILE_IDS_STORAGE_KEY);
 
@@ -36,6 +38,42 @@ export default function DashboardPage() {
     localStorage.removeItem(SELECTED_PROFILE_IDS_STORAGE_KEY);
   }
 }, []);
+function profileSelect(profileId: string) {
+  setSelectedProfiles((currentProfiles) => {
+    const isAlreadySelected = currentProfiles.some(
+      (profile) => profile.id === profileId
+    );
+
+    let updatedProfiles: ProfileStruct[];
+
+    if (isAlreadySelected) {
+      updatedProfiles = currentProfiles.filter(
+        (profile) => profile.id !== profileId
+      );
+    } else {
+      if (currentProfiles.length >= 5) {
+        return currentProfiles;
+      }
+
+      const profile = profileById.get(profileId);
+
+      if (!profile) {
+        return currentProfiles;
+      }
+
+      updatedProfiles = [...currentProfiles, profile];
+    }
+
+    localStorage.setItem(
+      SELECTED_PROFILE_IDS_STORAGE_KEY,
+      JSON.stringify(
+        updatedProfiles.map((profile) => profile.id)
+      )
+    );
+
+    return updatedProfiles;
+  });
+}
   return (
     <div className="relative flex min-h-screen flex-col items-center overflow-hidden bg-background text-black">
       
@@ -47,20 +85,40 @@ export default function DashboardPage() {
           <header className="mx-auto flex w-full  flex-col items-center px-3">
             <Logo />
 
-            <div className="mt-7  flex w-full max-w-[330px] flex-col">
-              <h1 className="text-[24px] font-black leading-9">Welcome!</h1>
+              {!viewedProfile && (
+                <div className="mt-7 flex w-full max-w-[330px] flex-col">
+                  <h1 className="text-[24px] font-black leading-9">
+                    Welcome!
+                  </h1>
 
-              <p className="mt-3 text-[17px] leading-6">
-                Discover meaningful connections on campus.
-              </p>
+                  <p className="mt-3 text-[17px] leading-6">
+                    Discover meaningful connections on campus.
+                  </p>
 
-              <p className="mt-1 text-[17px] leading-6">
-                Select up to five people you admire. When the interest is
-                mutual, it&apos;s a match.
-              </p>
-            </div>
+                  <p className="mt-1 text-[17px] leading-6">
+                    Select up to five people you admire. When the interest is
+                    mutual, it&apos;s a match.
+                  </p>
+                </div>
+              )}
           </header>
-
+              {viewedProfile ? (
+            <div className="mt-6 w-full">
+              <ProfileDetails
+                profile={viewedProfile}
+                onBack={() => setViewedProfile(null)}
+                onSelect={() => profileSelect(viewedProfile.id)}
+                isSelected={selectedProfiles.some(
+                  (profile) => profile.id === viewedProfile.id
+                )}
+                isDisabled={
+                  !selectedProfiles.some(
+                    (profile) => profile.id === viewedProfile.id
+                  ) && selectedProfiles.length >= 5
+                }
+              />
+            </div>
+          ) : (
           <section className="relative mt-6 flex w-full min-h-[450px] flex-col rounded-lg border-2 border-stroke bg-white shadow-[4px_3px_3px_0.5px_rgba(0,0,0,0.4)] px-5 pb-5 pt-4">
             <h2 className="text-[20px] font-semibold leading-6">
               Selected profiles
@@ -69,11 +127,16 @@ export default function DashboardPage() {
             {selectedProfiles.length > 0 ? (
               <div className="mt-5 flex flex-col gap-4">
                 {selectedProfiles.map((profile, index) => (
-                  <SelectedProfileCard
-                    key={profile.id}
+                  <button key={profile.id}
+                  type="button"
+                  onClick={()=>setViewedProfile(profile)}
+                  className="block w-full text-left">
+                    <SelectedProfileCard
                     profile={profile}
-                    colorClass={profileCardColors[index % profileCardColors.length]}
-                  />
+                    colorClass= {
+                      profileCardColors[index%profileCardColors.length]
+                    }/>
+                  </button>
                 ))}
               </div>
             ) : (
@@ -91,6 +154,7 @@ export default function DashboardPage() {
             )}
             
           </section>
+          )}
         </div>
       </main>
 
