@@ -19,7 +19,7 @@ export default function BottomNav() {
     <nav className="fixed inset-x-0 bottom-0 z-20 flex justify-center pb-4 px-6">
       <ul
         className="flex w-full items-center justify-evenly rounded-xl border border-black px-4"
-        style={{ backgroundColor: "var(--color-secondary)", paddingBottom: "5px", paddingTop: "5px", marginBottom: "20px", width: "350px" }}
+        style={{ backgroundColor: "var(--color-secondary)", padding: "5px 5px", marginBottom: "5px", width: "350px" }}
       >
         {NAV_ITEMS.map(({ href, label, icon, activeIcon, size }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);

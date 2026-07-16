@@ -83,24 +83,26 @@ export default function AccountForm({
     style = {{marginTop: "40px"}}>
       
       <fieldset className="rounded-xl border border-black bg-white px-4" 
-      style={{ height: "60px", paddingLeft: "25px", paddingTop: "5px", paddingRight: "25px"}}>
+      style={{ height: "60px", padding: "0px 25px"}}>
       <legend className="px-5 text-xs bg-white rounded-xl leading-5" style={{padding: "0px 15px"}}>Name</legend>        
       <input
           value={name}
           onChange={(e) => { setName(e.target.value); setSaved(false); }}
           maxLength={60}
           className="w-full bg-transparent py-2 text-base text-black focus:outline-none"
+          style={{marginTop: "-5px"}}
         />
       </fieldset>
 
       <fieldset className="rounded-xl border border-black bg-white px-4" 
-      style={{ height: "60px", paddingLeft: "25px", paddingTop: "5px", paddingRight: "25px"}}>
+      style={{ height: "60px", padding: "0px 25px"}}>
         <legend className="px-5 text-xs bg-white rounded-xl leading-5" style={{padding: "0px 15px"}}>Email</legend>
         <input
           value={email}
           readOnly
           disabled
           className="w-full bg-transparent py-2 text-base text-black focus:outline-none"
+          style={{marginTop: "-5px"}}
         />
       </fieldset>
 
@@ -134,7 +136,7 @@ export default function AccountForm({
       </div>
 
       <fieldset className="rounded-xl border border-black bg-white px-4 pb-4 pt-0"
-      style={{padding: "5px 25px"}}>
+      style={{padding: "5px 25px 10px 25px"}}>
         <legend className="px-5 text-xs bg-white rounded-xl leading-5" style={{padding: "0px 15px"}}>Hobbies corner</legend>
 
         <div className="flex flex-wrap gap-2 pt-1"
@@ -154,8 +156,8 @@ export default function AccountForm({
           <button
             type="button"
             onClick={() => setShowPicker((p) => !p)}
-            style={{ borderRadius: "15px", height: "20px", padding: "0 12px", border: "1px solid black", backgroundColor: "white", fontSize: "10px" }}
-            className="text-black whitespace-nowrap"
+            style={{ borderRadius: "15px", height: "25px", padding: "0 12px", border: "1px solid black", backgroundColor: "white",}}
+            className="text-black text-xs whitespace-nowrap"
           >
             + Add
           </button>
@@ -169,7 +171,7 @@ export default function AccountForm({
                 type="button"
                 onClick={() => addHobby(tag)}
                 className="rounded-full border border-dashed border-gray-400 bg-white px-4 py-1.5 text-xs text-black-500"
-                style={{ borderRadius: "15px", height: "20px", padding: "0 12px", border: "1px dashed", backgroundColor: "white", fontSize: "10px" }}
+                style={{ borderRadius: "15px", height: "25px", padding: "0 12px", border: "1px dashed", backgroundColor: "white"}}
               >
                 {tag}
               </button>
@@ -185,7 +187,7 @@ export default function AccountForm({
         type="submit"
         disabled={isPending}
         className="border border-black rounded-2xl py-3 text-xs text-white disabled:opacity-60"
-        style={{ backgroundColor: "#F9B63C" /* YDO logo color used, as no token exists for this yet */, height: "50px" ,width: "150px", alignSelf: "center"}}
+        style={{ backgroundColor: "#F9B63C" /* YDO logo color used, as no token exists for this yet */, height: "50px" ,width: "150px", alignSelf: "center", zIndex: "25"}}
       >
         {isPending ? "Saving…" : "Save changes"}
       </button>

@@ -30,7 +30,7 @@ return (
     </div>
 
     
-    <div className="relative flex flex-col" style={{ zIndex: 1 }}>
+    <div className="relative flex flex-col" style={{ zIndex: 0 }}>
       <Image
         src="/YDO.svg"
         alt="YDO"
@@ -39,7 +39,7 @@ return (
         style={{ marginTop: "45px", marginLeft: "-24px" }}
       />
       <h1
-        className="font-[500] text-center text-[32px] leading-[25px] tracking-tighter text-black"
+        className="font-[600] text-center text-[28px] leading-[25px]  text-black"
         style={{ fontFamily: "var(--font-poppins)" , marginTop: "60px"}}
       >
         Account Centre
