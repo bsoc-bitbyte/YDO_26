@@ -290,7 +290,7 @@ jobs:
               });
             }
 
-            // Parse Fixes/Closes/Resolves/Part of references and return issue numbers as Numbers.
+            // Parse Fixes/Closes/Resolves/Part of references from PR text (e.g., PR title) and return issue numbers as Numbers.
             function extractReferencedIssueNumbers(prText){
                 const referencedIssueNumbers = new Set();
                 if(!prText){
@@ -330,7 +330,6 @@ jobs:
                 const linkedPrForAssigneeMap = new Map();
                 for(const prLinked of allPullRequests){
                     if(!prLinked.user || !prLinked.user.login) continue;
-                    const prBody = prLinked.body;
                     const prTitle = prLinked.title;
                     const prAuthor = prLinked.user.login;
                     const referencedIssueNumbers = extractReferencedIssueNumbers(prTitle || "");
@@ -716,7 +715,7 @@ jobs:
 
                 let sawInactivePullRequest = false;
                 let sawSkippedPullRequest = false;
-                let sawUnknownPullRequest =false;
+                let sawUnknownPullRequest = false;
 
                 for (const pullRequest of linkedPullRequests) {
                     console.log(
