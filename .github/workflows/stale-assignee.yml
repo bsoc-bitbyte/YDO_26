@@ -290,15 +290,15 @@ jobs:
               });
             }
 
-            // Parse Fixes/Closes/Resolves/Part of references and return issue numbers as Numbers.
-            function extractReferencedIssueNumbers(prBody){
+            // Parse Fixes/Closes/Resolves/Part of references from PR text (e.g., PR title) and return issue numbers as Numbers.
+            function extractReferencedIssueNumbers(prText){
                 const referencedIssueNumbers = new Set();
-                if(!prBody){
+                if(!prText){
                     return referencedIssueNumbers;
                 }
                 const regex = /\b(?:(?:fix(?:e[sd])?|close[sd]?|resolve[sd]?)\s*:?\s+(?:[\w.-]+\/[\w.-]+)?#(\d+)|part\s+of\s*:?\s+(?:[\w.-]+\/[\w.-]+)?#(\d+))(?!\d)/gi;
                 let match ;
-                while((match = regex.exec(prBody)) !== null){
+                while((match = regex.exec(prText)) !== null){
                     const issueNumber = Number((match[1] || match[2]));
                     if(Number.isInteger(issueNumber)){
                         referencedIssueNumbers.add(issueNumber);
@@ -306,6 +306,7 @@ jobs:
                 }
                 return referencedIssueNumbers;
             }
+        
 
             // Stable map key for one issue + one assignee.
             function linkedPrKeyMacro(issueNumber,AssigneeLogin){
@@ -324,13 +325,14 @@ jobs:
             //Function To Find Pr for assignee
             // Build issue+assignee -> linked PRs map.
             // Only PRs authored by a current assignee count as that assignee's PR activity.
+
             function buildlinkedPrForAssigneeMap(allPullRequests,targetIsssueNUmbers,assigneeOnIssueMap){
                 const linkedPrForAssigneeMap = new Map();
                 for(const prLinked of allPullRequests){
                     if(!prLinked.user || !prLinked.user.login) continue;
-                    const prBody = prLinked.body;
+                    const prTitle = prLinked.title;
                     const prAuthor = prLinked.user.login;
-                    const referencedIssueNumbers = extractReferencedIssueNumbers(prBody || "");
+                    const referencedIssueNumbers = extractReferencedIssueNumbers(prTitle || "");
                     for(const issueNumber of referencedIssueNumbers){
                         if(!targetIsssueNUmbers.has(issueNumber))continue;
                         const assigneeSet = assigneeOnIssueMap.get(issueNumber);
@@ -713,6 +715,7 @@ jobs:
 
                 let sawInactivePullRequest = false;
                 let sawSkippedPullRequest = false;
+                let sawUnknownPullRequest = false;
 
                 for (const pullRequest of linkedPullRequests) {
                     console.log(
@@ -730,7 +733,8 @@ jobs:
                     }
 
                     if (status === STATUS.UNKNOWN) {
-                        return STATUS.UNKNOWN;
+                        sawUnknownPullRequest=true;
+                        continue;
                     }
 
                     if (status === STATUS.INACTIVE) {
@@ -742,6 +746,9 @@ jobs:
                         sawSkippedPullRequest = true;
                         continue;
                     }
+                }
+                if (sawUnknownPullRequest) {
+                    return STATUS.UNKNOWN;
                 }
 
                 if (sawInactivePullRequest) {
