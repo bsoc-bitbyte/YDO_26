@@ -116,7 +116,8 @@ function SearchPage(){
 
                 <input
                   type="text"
-                  id="username"
+                  id="profile-search"
+                  aria-label="Search profiles by name or roll number"
                   value={searchText}
                   onChange={(event)=>{
                     setSearchText(event.target.value);
@@ -128,7 +129,7 @@ function SearchPage(){
                 />
               </div>
               <div
-                  className={`relative mt-5 flex w-full flex-col pb-28 ${
+                  className={`relative mt-5 flex w-full flex-col  ${
                     viewedProfile ? "px-0" : "px-4"
                   }`}
                 >
@@ -155,7 +156,7 @@ function SearchPage(){
                       type="button"
                       
                       onClick={()=>{buttonClickController(interest);}}
-                      className={`min-w-[92px] rounded-full border border-storke/70 border-[1.2px]  px-3 py-1 text-[12px] text-black/80 tracking-[0.6px] font-poppins
+                      className={`min-w-[92px] rounded-full border border-stroke/70 border-[1.2px]  px-3 py-1 text-[12px] text-black/80 tracking-[0.6px] font-poppins
                           ${selectedInterests.has(interest)? "bg-primary hover:bg-primary/70 border-stroke shadow-[1.5px_1.5px_1px] " : "bg-white hover:bg-[#fff7e8]"}
                         `}
                     >
@@ -164,6 +165,17 @@ function SearchPage(){
                   ))}
                 </div>
                 <div className="relative mt-5 flex min-h-[470px] w-full max-w-[330px] flex-col   rounded-xl border border-stroke/50 bg-white/50 px-3 py-4">
+                  {!shouldShowMascot && (
+                    <div className="mb-3 flex w-full items-center justify-between">
+                      <h2 className="font-poppins text-[16px] font-semibold leading-5">
+                        Results
+                      </h2>
+
+                      <p className="font-poppins text-[11px] text-black/60">
+                        {selectedProfileIds.size}/5 selected
+                      </p>
+                    </div>
+                  )}
                   {shouldShowMascot ? (
                     <div className="flex flex-1 items-center justify-center">
                     <EmptyMascot />
@@ -174,9 +186,6 @@ function SearchPage(){
                     </div>
                   ) : (
                     <>
-                      <p className="mb-3 w-full text-right text-[12px] text-black/60">
-                        {selectedProfileIds.size}/5 selected
-                      </p>
 
                       <div className="flex w-full flex-col gap-3">
                         {profilesOnCurrentPage.map((profile,index) =>(
@@ -272,17 +281,6 @@ function ProfileResultCard({profile,colorClass,isSelected,isDisabled,onSelect,on
           {isSelected ? "Selected" : "Select"}
         </button>
       </div>
-
-      {/* <div className="mt-2 flex flex-wrap gap-2">
-        {profile.interests.map((interest) => (
-          <span
-            key={interest}
-            className="rounded-full border border-black/40 bg-white/70 px-2 py-[2px] text-[10px] text-black/70"
-          >
-            {interest}
-          </span>
-        ))}
-      </div> */}
     </article>
   );
 }

@@ -48,38 +48,75 @@ export function ProfileDetails({
       </div>
 
       {profile.currentlyPlaying && (
-        <div className="mt-5 rounded-[7px] bg-[#1f5663] p-2 text-white">
-          <div className="flex items-center gap-3">
-            {profile.currentlyPlaying.image ? (
-              <Image
-                src={profile.currentlyPlaying.image}
-                alt={`${profile.currentlyPlaying.songName} cover`}
-                width={55}
-                height={55}
-                className="h-[55px] w-[55px] shrink-0 object-cover"
-              />
-            ) : (
-              <div className="flex h-[55px] w-[55px] shrink-0 items-center justify-center bg-white/20 text-[22px]">
-                ♪
+          <div className="mt-5 h-[108px] w-full overflow-hidden rounded-[8px] bg-[#1f5663] p-2 text-white">
+            <div className="grid h-full grid-cols-[92px_minmax(0,1fr)] gap-3">
+              <div className="relative h-[92px] w-[92px] overflow-hidden rounded-[4px] bg-white/20">
+                {profile.currentlyPlaying.image ? (
+                  <Image
+                    src={profile.currentlyPlaying.image}
+                    alt={`${profile.currentlyPlaying.songName} cover`}
+                    fill
+                    sizes="92px"
+                    className="object-cover font-poppins"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-[28px]">
+                    ♪
+                  </div>
+                )}
               </div>
-            )}
 
-            <div className="min-w-0">
-              <p className="truncate text-[14px]">
-                {profile.currentlyPlaying.songName}
-              </p>
+              <div className="flex min-w-0 flex-col">
+                <p className="flex items-center gap-1 truncate font-poppins text-[9px] leading-[11px] text-white/90">
+                  What are they listening to?
+                  <span aria-hidden="true" className="text-[11px]">
+                    🎧
+                  </span>
+                </p>
 
-              <p className="truncate text-[9px] text-white/70">
-                {profile.currentlyPlaying.artistName}
-              </p>
+                <p className="mt-[3px] truncate font-poppins text-[18px] font-medium leading-[20px]">
+                  {profile.currentlyPlaying.songName}
+                </p>
 
-              <div className="mt-2 text-center text-[12px]">
-                ◀　▶　▶|
+                <p className="truncate font-poppins text-[8px] leading-[10px] text-white/80">
+                  {profile.currentlyPlaying.artistName}
+                </p>
+
+                <div className="mt-[5px] w-full">
+                  <div className="h-[3px] w-full overflow-hidden rounded-full bg-white/30">
+                    <div
+                      className="h-full rounded-full bg-white"
+                      style={{
+                        width: `${profile.currentlyPlaying.progress ?? 0}%`,
+                      }}
+                    />
+                  </div>
+
+                  <div className="mt-[2px] flex w-full justify-between font-poppins text-[6px] leading-[7px] text-white/60">
+                    <span>
+                      {profile.currentlyPlaying.currentTime ?? "0:00"}
+                    </span>
+
+                    <span>
+                      {profile.currentlyPlaying.duration ?? "0:00"}
+                    </span>
+                  </div>
+                </div>
+
+                <div
+                  className="mt-auto flex h-[20px] w-full items-center justify-center gap-5"
+                  aria-hidden="true"
+                >
+                  <span className="text-[12px] leading-none">◀</span>
+
+                  <span className="text-[14px] leading-none">▶</span>
+
+                  <span className="text-[12px] leading-none">▶|</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       <div className="mt-5">
         <span className="rounded-full border border-stroke bg-primary px-3 py-[2px] font-poppins font-[500] text-[12px]">

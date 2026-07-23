@@ -1,9 +1,10 @@
 "use client"
 
 import { useState,useEffect } from "react";
-import Link from "next/link";
 import Image  from "next/image";
 import BottomNav from "@/components/BottomNav";
+import Toast from "@/components/ui/Toast";
+import { useRouter } from "next/navigation";
 import { ProfileDetails } from "@/components/ProfileDetails";
 import { profileById ,SELECTED_PROFILE_IDS_STORAGE_KEY,type ProfileStruct } from "@/data/dummyProfiles";
 const profileCardColors = [
@@ -14,6 +15,7 @@ const profileCardColors = [
 ];
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [showSystemMessage,setShowSystemMessage] = useState(true);
 
   const [selectedProfiles,setSelectedProfiles] = useState<ProfileStruct[]>([]);
@@ -145,11 +147,21 @@ function profileSelect(profileId: string) {
                   <EmptyMascot/>
                 </div>
                 {showSystemMessage && (
-                  <div className="absolute left-1/2 top-[-70px] z-50 w-full max-w-[320px] -translate-x-1/2">
-                    <EmptySelectedProfileState onClose={()=> setShowSystemMessage(false)}/>
-                  </div>
+                  <Toast
+                    message={`Build something meaningful.
+                Make real connections.
+
+                Search for the one your heart yearns for.`}
+                    action={{
+                      label: "Search",
+                      onClick: () => {
+                        setShowSystemMessage(false);
+                        router.push("/search");
+                      },
+                    }}
+                    onClose={() => setShowSystemMessage(false)}
+                  />
                 )}
-              
               </>
             )}
             
@@ -180,9 +192,9 @@ function BackgroundCurves() {
 }
 function EmptyMascot() {
   return (
-    <div className="flex h-[190px] w-[230px] items-center justify-center bg-[#d9d9d9] p-4">
+    <div className="flex h-[190px] w-[230px] items-center justify-center bg-white p-4">
       <Image
-        src="/assets/search-for-one.svg"
+        src="/assets/mascot.png"
         alt='Cupid mascot holding a magnifying glass with a caption saying "search for one"'
         width={210}  
         height={210}
@@ -219,48 +231,5 @@ function SelectedProfileCard({
     </article>
   );
 }
-function SystemBoxHeader({onClose}: {onClose:()=>void}){
- 
-  return(
 
-    <div className="relative w-full">
-    <Image src="/assets/Frame 62.svg" alt="" width={390} height={65} className="pointer-events-none h-auto w-full"/>
-    <button type="button" aria-label = "close system message"  onClick={()=>{ onClose();}} className="absolute  right-4 top-3 z-[9999] h-7 w-7 rounded-full"/>
-  </div>
-  );
-}
-function SysMsgline(){
-  return(
-    <Image src="/assets/Line 14.svg" alt="" aria-hidden="true" width={265} height={0}/>
-  );
-}
-function SearchButton(){
-  return(
-    <Image src="/assets/search button.svg" alt="" width={164} height={43} />
-  )
-}
-function EmptySelectedProfileState({onClose}:{onClose:()=>void}){
-  return(
-    <div className="flex flex-col m-2 bg-white shadow-[4px_4px_3px_rgba(0,0,0,0.4)] rounded-xl border-2 w-full border-[#101010] max-w-[320px] pb-9 overflow-hidden">
-      <SystemBoxHeader onClose={onClose}/>
-      <div className="flex min-h-[100px] gap-4  mt-2 w-full max-w-[300px] flex-col items-center justify-center text-center font-prime text-[16px] font-normal leading-[25px] tracking-[1px] text-[#000000] pl-3">
-        <p >
-          Build something meaningful.
-          <br />
-          Make real connections.
-        </p>
-        <p>
-          Search for the one your heart yearns for.
-        </p>
-        <SysMsgline/>
-        <div className="flex mt-3 w-full justify-center">
-          <Link href="/search" aria-label="Search" title="Search">
-            <SearchButton/>
-          </Link>
-        </div>
-      </div>
-      
-    </div>
-  );
-}
 

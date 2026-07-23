@@ -1,10 +1,13 @@
 export const SELECTED_PROFILE_IDS_STORAGE_KEY =
   "ydo-selected-profile-ids";
 
-export type CurrentlyPlaying = {
+export type currentlyPlaying = {
   songName: string;
   artistName: string;
   image?: string;
+  currentTime?: string;
+  duration?: string;
+  progress?: number;
 };
 
 export type ProfileStruct = {
@@ -15,7 +18,7 @@ export type ProfileStruct = {
   interests: string[];
 
   profileImage?: string;
-  currentlyPlaying?: CurrentlyPlaying;
+  currentlyPlaying?: currentlyPlaying;
 };
 
 export const dummyProfiles: ProfileStruct[] = [
